@@ -1,160 +1,102 @@
-# Campus Stadium Ticket Booking System (CSTBS) — Version 2.0
+# CSTBS v3.0 — Seat Reservations
 
-**Accounts and Events** is the second milestone of the Flask + SQLite campus stadium project. This version makes registration and login functional, adds `student`, `staff`, and `admin` roles, and lets administrators create, edit, and delete event listings.
+**Campus Stadium Ticket Booking System (CSTBS)** is a Flask + SQLite web app for discovering campus events, authenticating campus users, and reserving numbered event seats. Version 3 extends the V2 **Accounts and Events** milestone; it keeps student/staff/admin roles and administrator-only event CRUD.
 
-> **Scope:** No seat selection, booking, checkout, payment, or production deployment setup exists in V2. Events and prices are illustrative unless your administrators replace them. This is a local-development project.
+> **Development project:** V3 implements real seat reservations but **does not process payments**, issue QR tickets, or provide production-ready operations. Price is informational, captured on each booking record. The availability feed polls every 5 seconds (near-real-time); only the database decides which reservation wins.
 
-## Technology
+## Stack
 
-- Python 3.10+, Flask, Jinja2, SQLite
-- SQLAlchemy and Flask-SQLAlchemy
-- Flask-Login for sessions and `@login_required`
-- Flask-WTF for validation and CSRF protection
-- Werkzeug for password hashing
-- python-dotenv for local secrets
-- Vanilla CSS/JavaScript; no frontend framework
+Python 3.10+, Flask, Flask-SQLAlchemy/SQLAlchemy, SQLite, Jinja2, Flask-WTF, Flask-Login, Werkzeug, python-dotenv, and vanilla HTML/CSS/JavaScript. No frontend framework or third-party booking service.
 
-## Quick start (fresh installation)
+## Quick start
 
 ```bash
-# From the unpacked CSTBS-v2 directory:
+# In the extracted CSTBS-v3 directory
 python -m venv .venv
-source .venv/bin/activate         # Windows PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate               # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-cp .env.example .env             # Windows PowerShell: Copy-Item .env.example .env
-```
-
-Generate a secret key:
-
-```bash
+cp .env.example .env                    # Windows: Copy-Item .env.example .env
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Paste the result into `.env` as `SECRET_KEY=<random-value>`, replacing the placeholder. Do not commit `.env`.
+Paste the random value in `.env` as `SECRET_KEY=<your-generated-value>` replacing the example placeholder. Never push `.env` to GitHub. Start with:
 
 ```bash
 python -m flask --app run.py seed-events
 python run.py
 ```
 
-Open **http://127.0.0.1:5000**. Tables are created on first run at `instance/cstbs.db`. Running `seed-events` adds four sample events **only if the catalog is empty**. Because seeding is explicit, deleted events do not silently reappear when the server restarts.
+Open **http://127.0.0.1:5000** and register a student, browse events, choose seats, review your selection, and confirm. The app creates `instance/cstbs.db` on startup and seeds four example events with 60 seats each. `seed-events` is idempotent when the event catalog is not empty.
 
-## Create your administrator account
+### V3 booking walkthrough
 
-1. Open `/register` and register a normal account (all public registrations are `student`).
-2. Stop the development server or open a second terminal with the virtual environment activated.
-3. Promote your own account locally:
+1. Register or sign in (all public registrations become `student`).
+2. Open an upcoming event and select **Choose seats**.
+3. Use the responsive A1–F10 seat grid; select up to **6 seats**. Grey seats are reserved.
+4. Select **Review reservation** to see the full seat list and total cost.
+5. Select **Confirm reservation**. All seat rows save together, or none save if availability changed.
+6. Open **My bookings** to view reserved/cancelled seats and cancel your own reservation. Each seat is a separate booking record, and can be cancelled individually. Cancelled rows remain in the history; their seats become available again.
+
+**Availability:** `/api/events/<id>/seats` returns `reserved_seat_ids`, available/total counts, and whether booking remains open. The browser refreshes every **5 seconds** and removes seats that have just become unavailable from the user's selection. These are not temporary holds; a conflict is still possible between refreshes. The server rechecks selection on review and confirmation. A SQLite **partial unique index** on `bookings.seat_id` where `status='reserved'` prevents double-booking at commit time, including racing requests. The web UI handles conflicts by returning the user to the seat map with a message.
+
+## Keep V2 admin accounts & events
+
+Registration, login, logout, role handling, the `/account` page, and public event catalog all continue to work. Only `admin` users can create/edit/delete events. New admin-created events automatically receive a 60-seat inventory. Admin event deletion is allowed for events without **any** booking history, removing their unused seats; it is refused for events with reserved **or cancelled** booking records to preserve history. Staff have regular user booking access, but no admin privileges.
+
+Promote a trusted account **locally** (after registering it):
 
 ```bash
 python -m flask --app run.py set-role you@campus.edu admin
 ```
 
-4. Sign out, sign back in, then open **http://127.0.0.1:5000/admin/events**. Only admins can create, edit, or delete events.
+Sign out and back in; open `/admin/events`. The CLI also accepts `staff` and `student`.
 
-The CLI also supports `set-role you@campus.edu staff` and `set-role you@campus.edu student`. **The browser form cannot assign elevated roles.** `staff` currently has normal account/browse access; no staff-only workflow is introduced in V2.
+## Migrating an existing V2 database
 
-## Upgrading a V1 SQLite database
+**Back up the entire previous database before upgrading**, and stop the old app first.
 
-**Always back up your local database before upgrading.** If you previously had `CSTBS-v1/instance/cstbs.db`, copy it into `CSTBS-v2/instance/cstbs.db` *before* starting V2. Do not copy your old `.env` into Git; you can reuse its `SECRET_KEY` locally to preserve existing session compatibility.
+1. Copy `CSTBS-v2/instance/cstbs.db` into `CSTBS-v3/instance/cstbs.db` before launching V3 (only if preserving previous local data).
+2. Keep a strong local `.env` secret; retaining the V2 `SECRET_KEY` preserves existing session cookies while they are valid.
+3. Start the app. The targeted SQLite compatibility code in `app/migrations.py` adds `price_at_booking` to preexisting booking tables and creates the **unique index on active bookings**. If there were old bookings, their initial price snapshot is filled from the current event price. V2 events **with no seats** are automatically assigned 60 labelled seats. Events that already have any seat records are left unchanged.
+4. Do **not** manually delete or overwrite the old SQLite database; do **not** attempt this migration without a backup.
 
-On startup, `app/migrations.py` checks SQLite's `users` table and adds a `role` column with default `student` **only if missing**. It does not drop user or event rows or change the seat/booking schema. Existing V1 `password_hash` values, if any, are left untouched. V1's UI did not create registered accounts, so users typically register anew.
+If duplicate active bookings already exist for one seat, startup aborts with a helpful error instead of deleting data. This is a narrow local migration, not a general migration framework: use a real migration system for production and stage your upgrades.
 
-**Caution:** This is a targeted V1-to-V2 SQLite compatibility step, *not* a general migration framework. `db.create_all()` cannot handle arbitrary schema changes. Do not treat this development app as a production system.
+## Routes
 
-## Routes and access
-
-| Method / URL | Access | Purpose |
+| Method + path | Access | Purpose |
 | --- | --- | --- |
-| `GET /` | Public | Featured upcoming events |
-| `GET /events` | Public | All events |
-| `GET /events/<id>` | Public | Event details |
-| `GET, POST /register` | Visitors | Create a `student` account |
-| `GET, POST /login` | Visitors | Authenticate via password hash |
-| `POST /logout` | Signed-in users | End session; CSRF required |
-| `GET /account` | Signed-in users | Profile and role |
-| `GET /admin/events` | Admin | Event management index |
-| `GET, POST /admin/events/new` | Admin | Create event |
-| `GET, POST /admin/events/<id>/edit` | Admin | Edit event |
-| `POST /admin/events/<id>/delete` | Admin | Delete event (requires CSRF) |
+| `GET /`, `GET /events`, `GET /events/<id>` | Public | Event catalog and detail |
+| `GET/POST /register`, `GET/POST /login` | Visitor | Accounts |
+| `POST /logout`, `GET /account` | Logged in | Session & profile |
+| `GET /admin/events`, `GET/POST /admin/events/new` | Admin | Event management |
+| `GET/POST /admin/events/<id>/edit`, `POST /admin/events/<id>/delete` | Admin | Edit/delete event |
+| `GET /events/<id>/seats` | Logged in | Interactive seat map |
+| `GET /api/events/<id>/seats` | Public | Fresh occupancy JSON |
+| `POST /events/<id>/booking/review` | Logged in | Validate and display confirmation |
+| `POST /events/<id>/booking/confirm` | Logged in | Save selection atomically |
+| `GET /bookings` | Logged in | Own booking history |
+| `POST /bookings/<id>/cancel` | Owner | Cancel own seat; preserve history |
 
-Anonymous users are redirected to login from protected endpoints. Signed-in non-admins receive HTTP 403 for admin pages. Event deletion is blocked when an event has attached seats, to avoid silently removing seat/booking records.
+All state-changing POST endpoints require **CSRF tokens**. Anonymous users are redirected to login, and non-admin users get HTTP 403 on admin URLs. Cancellation requests for another user's booking return HTTP 404. API seat counts are public but reveal no user identities. `booking/confirm` requires a valid reviewed selection in the user's signed session.
 
-## Authentication and security notes
-
-- Passwords are hashed using Werkzeug (`generate_password_hash`, `check_password_hash`), not stored in plaintext.
-- Email addresses are normalized to lowercase, with a database uniqueness constraint.
-- Public registration always assigns the `student` role on the server.
-- Forms and state-changing POST routes require CSRF tokens.
-- Sign-out and event deletion use POST, not GET.
-- Login's `next` redirect accepts only internal absolute paths.
-- `SECRET_KEY` is required from `.env`. Never use Flask debug mode on a public server.
-- No password reset, email verification, rate limiting, HTTPS reverse proxy, audit log, or production DB migration system is included in V2. Add these before internet-facing deployment.
-
-## Automated tests
-
-Once dependencies are installed:
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Tests cover public routes, registration and password hashing, duplicate emails, login/logout, protected/admin routes, CRUD, CSRF rejection, safe login redirects, seat-aware deletion, seeding, and SQLite V1 schema upgrade.
+Coverage includes V2 account/admin behavior and V3 booking flow, CSRF, seat limits, cross-event IDs, history, cancellation, double-booking database constraint, stale review conflicts, and V2 schema upgrade. You should also check narrow-screen horizontal seat scrolling and native keyboard button navigation in a browser.
 
-## Structure
+## Design documents
 
-```text
-CSTBS-v2/
-├── README.md
-├── CHANGELOG.md
-├── requirements.txt
-├── .env.example
-├── .gitignore
-├── run.py
-├── config.py
-├── docs/
-│   ├── requirements.md
-│   ├── uml.md
-│   ├── database-design.md
-│   └── version-2-changes.pdf
-├── app/
-│   ├── __init__.py
-│   ├── migrations.py
-│   ├── models.py
-│   ├── routes.py
-│   ├── forms.py
-│   ├── seed.py
-│   ├── static/
-│   │   ├── css/styles.css
-│   │   ├── js/main.js
-│   │   └── images/stadium.svg
-│   └── templates/
-│       ├── base.html
-│       ├── _event_card.html
-│       ├── index.html
-│       ├── events.html
-│       ├── event_detail.html
-│       ├── login.html
-│       ├── register.html
-│       ├── account.html
-│       └── admin/
-│           ├── events.html
-│           └── event_form.html
-├── tests/
-│   └── test_app.py
-└── instance/
-    └── .gitkeep
-```
+- [Requirements analysis](docs/requirements.md)
+- [PlantUML diagrams](docs/uml.md)
+- [Database design and upgrade notes](docs/database-design.md)
+- [Version history](CHANGELOG.md)
+- [GitHub release text](docs/github-release-v3.0.md)
+- [V3 PDF change report](docs/version-3-changes.pdf)
 
-## GitHub release
+## Limitations / production considerations
 
-Suggested tag: **`v2.0`**. See `CHANGELOG.md` and the included `CSTBS-v2-Changes.pdf` (provided separately) for the version summary.
-
-```bash
-git add .
-git commit -m "feat: add CSTBS v2.0 accounts and admin event management"
-git tag -a v2.0 -m "CSTBS v2.0 - Accounts and Events"
-git push origin main
-git push origin v2.0
-```
-
-Replace `main` if your repository uses a different default branch. Only tag the release after running the app and tests locally.
+The system has no checkout, payment gateways, ticket scanning, refunds, seat holds, email notifications, audit UI, account recovery, rate limiting, or distributed database. It uses an SQLite database suitable for development, not a high-volume stadium sale. `app.run(debug=True)` is **local-development only**; use HTTPS, a WSGI server, secure cookies, and proper migration tooling before internet deployment. Event time strings use **campus-local naive datetimes** as in V2; adopt explicit timezones before multi-campus use. An admin changing a future event's price does not rewrite historical booking price snapshots. Confirmation saves per-seat bookings, not a single group-order entity.

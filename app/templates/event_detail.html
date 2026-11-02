@@ -13,7 +13,7 @@
             <h1>{{ event.title }}</h1>
             <p class="detail-description">{{ event.description }}</p>
             <h2>About this event</h2>
-            <p>Join the campus community at {{ event.venue }}. Event details are published by stadium administrators. Ticket booking is not yet available.</p>
+            <p>Join the campus community at {{ event.venue }}. Event details are published by stadium administrators. Seat reservations are available for upcoming events.</p>
         </article>
         <aside class="detail-sidebar" aria-label="Event information">
             <div class="detail-ticket">
@@ -26,8 +26,16 @@
                     <div><dt>Venue</dt><dd>{{ event.venue }}</dd></div>
                     <div><dt>Category</dt><dd>{{ event.category }}</dd></div>
                 </dl>
-                <button class="button button-disabled" type="button" disabled>Booking available in a later version</button>
-                <p class="ticket-note">This prototype does not accept reservations or payments.</p>
+                {% if event.starts_at > now %}
+                {% if current_user.is_authenticated %}
+                <a class="button button-primary" href="{{ url_for('main.seat_map', event_id=event.id) }}">Choose seats →</a>
+                {% else %}
+                <a class="button button-primary" href="{{ url_for('main.login', next=url_for('main.seat_map', event_id=event.id)) }}">Sign in to reserve →</a>
+                {% endif %}
+                <p class="ticket-note">Choose your seat and confirm to reserve. No payment is collected.</p>
+                {% else %}
+                <p class="ticket-note">Reservations for this event have closed.</p>
+                {% endif %}
             </div>
         </aside>
     </div>

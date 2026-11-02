@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from . import db
 from .models import Event
+from .seating import add_default_seats
 
 
 def seed_demo_events():
@@ -27,10 +28,12 @@ def seed_demo_events():
 
     for days, hour, minute, title, category, venue, price, description in samples:
         event_date = date.today() + timedelta(days=days)
-        db.session.add(Event(
+        event = Event(
             title=title, category=category, venue=venue, price=Decimal(price),
             description=description,
             starts_at=datetime.combine(event_date, time(hour=hour, minute=minute)),
-        ))
+        )
+        db.session.add(event)
+        add_default_seats(event)
     db.session.commit()
     return len(samples)

@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}My bookings{% endblock %}
+{% block content %}
+<section class="page-heading container">
+  <span class="section-kicker">YOUR RESERVATIONS</span>
+  <h1>My <em>bookings.</em></h1>
+  <p>Manage your reserved seats and see cancelled reservation history.</p>
+</section>
+<section class="container history-section">
+  {% if bookings %}
+  <div class="history-list">
+  {% for booking in bookings %}
+    <article class="history-card">
+      <div class="history-main">
+        <span class="history-state {% if booking.status == 'reserved' %}is-active{% else %}is-cancelled{% endif %}">{{ booking.status|capitalize }}</span>
+        <h2><a href="{{ url_for('main.event_detail', event_id=booking.event.id) }}">{{ booking.event.title }}</a></h2>
+        <p>{{ booking.event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ booking.event.venue }}</p>
+        <p>Seat <strong>{{ booking.seat.label }}</strong> · Section {{ booking.seat.section }} · <strong>${{ '%.2f'|format(booking.price_at_booking) }}</strong></p>
+        <small>Booking #{{ booking.id }} · {{ booking.created_at.strftime('%b %d, %Y') }}</small>
+      </div>
+      {% if booking.status == 'reserved' %}
+      <form method="post" action="{{ url_for('main.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this seat reservation?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="button button-danger button-small">Cancel booking</button>
+      </form>
+      {% endif %}
+    </article>
+  {% endfor %}
+  </div>
+  {% else %}
+    <div class="empty-state"><h2>No bookings yet</h2><p>Explore an upcoming event to reserve your first seat.</p>
+    <a class="button button-primary" href="{{ url_for('main.events') }}">Browse events</a></div>
+  {% endif %}
+</section>
+{% endblock %}

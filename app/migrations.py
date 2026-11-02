@@ -1,16 +1,15 @@
-"""Minimal, non-destructive SQLite upgrade from the V1 user schema.
+"""Targeted SQLite compatibility upgrades from CSTBS V1/V2.
 
-This is an intentionally narrow compatibility step, not a generic migration tool.
-It does not modify event, seat, or booking rows.
+Not a replacement for Alembic: back up your database before upgrading.
 """
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from . import db
 
 
 def upgrade_v1_user_schema():
-    """Add role='student' to legacy V1 users without losing existing rows."""
+    """Add missing student roles to legacy V1 accounts, preserving records."""
     if db.engine.dialect.name != "sqlite":
         return
     inspector = inspect(db.engine)
@@ -23,3 +22,42 @@ def upgrade_v1_user_schema():
                 "ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL "
                 "DEFAULT 'student' CHECK (role IN ('student', 'staff', 'admin'))"
             )
+
+
+def upgrade_v2_booking_constraints():
+    """Add the unique active-seat index to existing V2 booking tables.
+
+    Refuse to start if bad duplicate active data exists, rather than losing or
+    silently reassigning any historical booking rows.
+    """
+    if db.engine.dialect.name != "sqlite":
+        return
+    if "price_at_booking" not in {
+        column["name"] for column in inspect(db.engine).get_columns("bookings")
+    }:
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE bookings ADD COLUMN price_at_booking NUMERIC(10,2) "
+                "NOT NULL DEFAULT 0"
+            )
+            # Preserve a price snapshot for legacy bookings, if any.
+            connection.exec_driver_sql("""
+                UPDATE bookings SET price_at_booking = COALESCE(
+                    (SELECT events.price FROM seats
+                     JOIN events ON events.id = seats.event_id
+                     WHERE seats.id = bookings.seat_id), 0)
+            """)
+    with db.engine.begin() as connection:
+        duplicates = connection.execute(text("""
+            SELECT seat_id FROM bookings WHERE status = 'reserved'
+            GROUP BY seat_id HAVING COUNT(*) > 1 LIMIT 1
+        """)).first()
+        if duplicates:
+            raise RuntimeError(
+                "Database contains conflicting active reservations. "
+                "Back up and resolve duplicates before starting V3."
+            )
+        connection.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_seat "
+            "ON bookings (seat_id) WHERE status = 'reserved'"
+        )
