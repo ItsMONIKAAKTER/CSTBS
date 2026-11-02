@@ -4,7 +4,7 @@
 <section class="page-heading container">
     <span class="section-kicker">YOUR CAMPUS PROFILE</span>
     <h1>Welcome, {{ current_user.full_name }}.</h1>
-    <p>Your CSTBS account is active. Explore upcoming events below.</p>
+    <p>Your CSTBS account is active. View your reservations or explore upcoming events.</p>
 </section>
 <section class="container account-layout">
     <div class="account-card">
@@ -16,6 +16,7 @@
             <div><dt>Member since</dt><dd>{{ current_user.created_at.strftime('%b %d, %Y') }}</dd></div>
         </dl>
         <div class="account-actions">
+            <a class="button button-primary" href="{{ url_for('main.booking_history') }}">My bookings</a>
             <a class="button button-secondary" href="{{ url_for('main.events') }}">Browse events</a>
             {% if current_user.is_admin %}<a class="button button-primary" href="{{ url_for('main.admin_events') }}">Manage events</a>{% endif %}
         </div>

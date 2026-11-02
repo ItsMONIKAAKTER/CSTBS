@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Confirm reservation{% endblock %}
+{% block content %}
+<section class="page-heading container">
+  <span class="section-kicker">FINAL STEP</span>
+  <h1>Review your <em>reservation.</em></h1>
+  <p>Confirm your selection to reserve these seats. Seats are not held until confirmation succeeds.</p>
+</section>
+<section class="container confirm-section">
+  <article class="confirm-panel">
+    <h2>{{ event.title }}</h2>
+    <p class="confirm-details">{{ event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
+    <div class="confirm-seats"><span>Selected seats</span><strong>{% for seat in seats %}{{ seat.label }}{% if not loop.last %}, {% endif %}{% endfor %}</strong></div>
+    <div class="confirm-seats"><span>Quantity</span><strong>{{ seats|length }}</strong></div>
+    <div class="confirm-seats"><span>Price per seat</span><strong>${{ '%.2f'|format(event.price) }}</strong></div>
+    <div class="checkout-total"><span>Total (no payment charged)</span><strong>${{ '%.2f'|format(total) }}</strong></div>
+    <div class="confirm-actions">
+      <form method="post" action="{{ url_for('main.booking_confirm', event_id=event.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button button-primary" type="submit">Confirm reservation</button>
+      </form>
+      <a class="button button-secondary" href="{{ url_for('main.seat_map', event_id=event.id) }}">Choose different seats</a>
+    </div>
+    <p class="seat-hint">Availability can change before confirmation. If a seat was taken, no seats in this selection will be booked.</p>
+  </article>
+</section>
+{% endblock %}

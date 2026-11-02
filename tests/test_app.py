@@ -14,7 +14,7 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from app import create_app, db
-from app.models import Event, Seat, User
+from app.models import Booking, Event, Seat, User
 from app.seed import seed_demo_events
 
 
@@ -184,19 +184,23 @@ class CSTBSTests(unittest.TestCase):
         self.assertIn(b"Account details", response.data)
         self.assertNotIn(b"evil.example", response.data)
 
-    def test_event_deletion_refused_when_seats_exist(self):
+    def test_event_deletion_refused_when_booking_history_exists(self):
         self.make_user("admin@example.edu", "admin")
         event = Event(title="Reserved Event", category="Music", description="Showtime",
                       venue="Main Stadium", starts_at=datetime.now(), price=Decimal("0"))
         db.session.add(event)
         db.session.flush()
-        db.session.add(Seat(event_id=event.id, section="A", row_label="1", number=1))
+        seat = Seat(event_id=event.id, section="A", row_label="1", number=1)
+        db.session.add(seat)
+        user = self.make_user("buyer@example.edu", "student")
+        db.session.add(Booking(user_id=user.id, seat=seat, status="cancelled",
+                               price_at_booking=Decimal("0")))
         db.session.commit()
         self.sign_in("admin@example.edu")
         response = self.client.post(f"/admin/events/{event.id}/delete", data={
             "csrf_token": self.csrf("/admin/events")
         }, follow_redirects=True)
-        self.assertIn(b"cannot be deleted", response.data)
+        self.assertIn(b"booking history", response.data)
         self.assertIsNotNone(db.session.get(Event, event.id))
 
     def test_admin_event_rejects_negative_price(self):

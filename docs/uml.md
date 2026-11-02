@@ -1,8 +1,8 @@
-# CSTBS Version 2 — UML Diagrams (PlantUML)
+# CSTBS Version 3 — UML (PlantUML)
 
-Diagrams below document implemented **Accounts and Events** behavior. Seat and Booking remain schema-only until a later version.
+The following PlantUML source renders the main implemented V3 behavior; copy each block into any PlantUML viewer to generate diagrams.
 
-## 1. Use cases
+## 1. Use-case diagram
 
 ```plantuml
 @startuml
@@ -14,44 +14,48 @@ actor Admin
 Visitor <|-- Student
 Visitor <|-- Staff
 Visitor <|-- Admin
-rectangle "CSTBS V2" {
-  usecase "Browse events" as Browse
-  usecase "View event detail" as Detail
-  usecase "Register student account" as Register
-  usecase "Log in / out" as Auth
-  usecase "View own account" as Account
-  usecase "Create event" as Create
-  usecase "Edit event" as Edit
-  usecase "Delete event" as Delete
+rectangle "CSTBS v3" {
+  usecase "Browse event catalog" as Browse
+  usecase "Register / log in" as Auth
+  usecase "View live seat availability" as Availability
+  usecase "Select / review seats" as Review
+  usecase "Confirm reservation" as Confirm
+  usecase "View own booking history" as History
+  usecase "Cancel own booking" as Cancel
+  usecase "Manage events" as Manage
 }
 Visitor --> Browse
-Visitor --> Detail
-Visitor --> Register
 Visitor --> Auth
-Student --> Account
-Staff --> Account
-Admin --> Account
-Admin --> Create
-Admin --> Edit
-Admin --> Delete
+Visitor --> Availability
+Student --> Review
+Student --> Confirm
+Student --> History
+Student --> Cancel
+Staff --> Review
+Staff --> Confirm
+Staff --> History
+Staff --> Cancel
+Admin --> Review
+Admin --> Confirm
+Admin --> History
+Admin --> Cancel
+Admin --> Manage
 @enduml
 ```
 
-## 2. Class diagram
+## 2. Class/ER diagram
 
 ```plantuml
 @startuml
+hide methods
 skinparam classAttributeIconSize 0
 class User {
   +id: Integer
+  +email: String <<unique>>
   +full_name: String
-  +email: String [unique]
   +password_hash: String
   +role: student|staff|admin
   +created_at: DateTime
-  +set_password(password)
-  +check_password(password): bool
-  +is_admin: bool
 }
 class Event {
   +id: Integer
@@ -64,101 +68,115 @@ class Event {
 }
 class Seat {
   +id: Integer
-  +event_id: Integer [FK]
+  +event_id: Integer <<FK>>
   +section: String
   +row_label: String
   +number: Integer
+  +label: String
 }
 class Booking {
   +id: Integer
-  +user_id: Integer [FK]
-  +seat_id: Integer [FK]
-  +status: String
+  +user_id: Integer <<FK>>
+  +seat_id: Integer <<FK>>
+  +status: reserved|cancelled
+  +price_at_booking: Numeric(10,2)
   +created_at: DateTime
 }
-User "1" -- "0..*" Booking
-Event "1" -- "0..*" Seat
-Seat "1" -- "0..*" Booking
+User "1" -- "0..*" Booking : owns
+Event "1" -- "0..*" Seat : inventory
+Seat "1" -- "0..*" Booking : history
+note right of Booking
+  SQLite partial UNIQUE index on seat_id
+  when status = reserved.
+end note
 @enduml
 ```
 
-## 3. Component diagram
+## 3. Booking activity diagram
 
 ```plantuml
 @startuml
-skinparam componentStyle rectangle
-actor Visitor
-actor Admin
-component "Flask Routes" as Routes
-component "Flask-Login / Auth" as Auth
-component "Flask-WTF / CSRF" as Forms
-component "Jinja2 Templates" as View
-component "SQLAlchemy Models" as ORM
-database "SQLite" as DB
-Visitor --> Routes : browse / account HTTP
-Admin --> Routes : admin event HTTP
-Routes --> Auth : sessions & role checks
-Routes --> Forms : validate inputs
-Routes --> ORM : CRUD
-Routes --> View : render pages
-ORM --> DB : SQL
+start
+:Sign in;
+:Open event's seat map;
+repeat
+  :Select 1-6 available seats;
+  :Poll availability every 5s;
+repeat while (Want to change seats?) is (yes)
+:Submit selection for review;
+if (Seats belong to event and open?) then (yes)
+  :Display reviewed seat list & total;
+  :User confirms;
+  :Recheck event and occupancy;
+  if (Still available?) then (yes)
+    :Insert all booking rows in transaction;
+    if (Unique index permits COMMIT?) then (yes)
+      :Display booking history;
+    else (no)
+      :Rollback all rows;
+      :Return to seat map;
+    endif
+  else (no)
+    :Return to seat map;
+  endif
+else (no)
+  :Return to seat map with error;
+endif
+stop
 @enduml
 ```
 
-## 4. Sequence: user login
+## 4. Seat availability / confirmation sequence
 
 ```plantuml
 @startuml
-actor User
-participant Browser
-participant "Flask route" as Route
-participant "Flask-WTF" as Form
-participant "User model / Werkzeug" as Model
-participant "Flask-Login" as Login
-User -> Browser : Enter email and password
-Browser -> Route : POST /login + CSRF
-Route -> Form : validate_on_submit()
-alt invalid input / CSRF
-  Route --> Browser : Form errors / HTTP 400
-else valid input
-  Route -> Model : Find user by email, check_password()
-  alt Password valid
-    Route -> Login : login_user(user)
-    Route --> Browser : Redirect to account / safe next
-  else Invalid credentials
-    Route --> Browser : Generic login failure message
-  end
+actor Student
+participant "Browser + seats.js" as Browser
+participant "Flask routes" as Route
+participant "SQLAlchemy" as ORM
+database SQLite as DB
+Student -> Browser : Select seats A1, A2
+loop every 5 seconds
+  Browser -> Route : GET /api/events/{id}/seats
+  Route -> ORM : Load reserved seat IDs
+  ORM -> DB : SELECT active bookings
+  DB --> Browser : through API: JSON occupancy
+end
+Student -> Browser : Review seats
+Browser -> Route : POST booking/review + CSRF
+Route -> ORM : Validate selected seats
+Route --> Browser : Review page; pending in session
+Student -> Browser : Confirm
+Browser -> Route : POST booking/confirm + CSRF
+Route -> ORM : Revalidate + insert 2 bookings
+ORM -> DB : COMMIT (unique partial index)
+alt all seats remain available
+  DB --> Route : Commit success
+  Route --> Browser : Redirect /bookings
+else somebody reserved a seat first
+  DB --> Route : IntegrityError
+  Route -> ORM : ROLLBACK
+  Route --> Browser : Return to seat map; no partial booking
 end
 @enduml
 ```
 
-## 5. Sequence: administrator creates event
+## 5. Cancellation sequence
 
 ```plantuml
 @startuml
-actor Admin
-participant Browser
-participant "Flask endpoint" as Route
-participant "Flask-Login" as Auth
-participant "EventForm" as Form
-participant "SQLAlchemy" as ORM
-Admin -> Browser : Open create event screen
-Browser -> Route : GET /admin/events/new
-Route -> Auth : @login_required + admin_required
-alt Not authenticated
-  Route --> Browser : Redirect to /login
-else Signed in, non-admin
-  Route --> Browser : 403 Forbidden
-else Admin
-  Route --> Browser : Render form
-  Browser -> Route : POST event data + CSRF
-  Route -> Form : Validate fields and CSRF
-  alt Valid
-    Route -> ORM : INSERT Event
-    Route --> Browser : Redirect to public details
-  else Invalid
-    Route --> Browser : Render field errors
-  end
+actor Student
+participant "Flask route" as Route
+database SQLite as DB
+Student -> Route : POST /bookings/{id}/cancel + CSRF
+Route -> DB : SELECT booking WHERE user_id = current_user
+alt own active booking
+  Route -> DB : UPDATE status='cancelled'
+  Route --> Student : Redirect /bookings; released seat
+else other user's booking
+  Route --> Student : 404 (no leaked details)
+else already cancelled
+  Route --> Student : Redirect /bookings; unchanged
 end
 @enduml
 ```

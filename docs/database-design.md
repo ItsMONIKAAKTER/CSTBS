@@ -1,53 +1,89 @@
-# CSTBS Version 2 — Database Design
+# CSTBS Version 3 — SQLite Data Model
 
-## Storage and compatibility
+## Entity overview
 
-SQLite at `instance/cstbs.db` by default; ORM via Flask-SQLAlchemy. V2 keeps the four V1 tables and extends `users` with `role`. `app/migrations.py` adds the role column non-destructively on an existing V1 SQLite database; this is **not** a general migration tool.
+`User 1 -> many Booking -> 1 Seat -> many-to-1 Event`.
 
-## Table: `users`
+A **Seat** is event-specific. A **Booking** refers to one seat and one user. Selecting several seats writes several bookings together; each may later be cancelled separately. There is no order-group entity in Version 3.
 
-| Column | SQLAlchemy type | Constraints | V2 behavior |
-| --- | --- | --- | --- |
-| id | Integer | PK | Flask-Login identity |
-| full_name | String(120) | NOT NULL | Display name |
-| email | String(254) | NOT NULL, UNIQUE, indexed | Lowercase account identifier |
-| password_hash | String(255) | NOT NULL | Werkzeug password hash |
-| role | String(20) | NOT NULL, default `student`, CHECK allowed roles | `student`, `staff`, `admin` |
-| created_at | DateTime | NOT NULL, UTC default | Account creation timestamp |
+## Tables
 
-Passwords are never stored in plaintext. The signup endpoint supplies `role='student'` independently of any client field. Admin and staff assignments use the trusted local command: `flask set-role EMAIL ROLE`. Existing legacy users are assigned `student` during the V1 upgrade.
+### `users` (retained from V2)
 
-## Table: `events`
+| Field | Type | Constraints |
+| --- | --- | --- |
+| id | Integer | Primary key |
+| full_name | VARCHAR(120) | NOT NULL |
+| email | VARCHAR(254) | NOT NULL, UNIQUE, indexed |
+| password_hash | VARCHAR(255) | NOT NULL |
+| role | VARCHAR(20) | NOT NULL, default `student`, check `student`/`staff`/`admin` |
+| created_at | DATETIME | NOT NULL, UTC (naive for SQLite) |
 
-| Column | SQLAlchemy type | Constraints | V2 behavior |
-| --- | --- | --- | --- |
-| id | Integer | PK | Event identity |
-| title | String(150) | NOT NULL | Managed by admin |
-| category | String(40) | NOT NULL | Managed by admin |
-| description | Text | NOT NULL | Managed by admin |
-| venue | String(120) | NOT NULL | Managed by admin |
-| starts_at | DateTime | NOT NULL, indexed | Naive campus-local date/time |
-| price | Numeric(10,2) | NOT NULL, CHECK >= 0 | USD display price only |
+### `events` (retained from V2)
 
-Events are visible to all visitors. Administrators may create/edit/delete them. Deletion is refused when the event has seats to preserve future seat/booking references. No payment or availability workflow exists in V2.
+| Field | Type | Constraints |
+| --- | --- | --- |
+| id | Integer | Primary key |
+| title | VARCHAR(150) | NOT NULL |
+| category | VARCHAR(40) | NOT NULL |
+| description | TEXT | NOT NULL |
+| venue | VARCHAR(120) | NOT NULL |
+| starts_at | DATETIME | NOT NULL, indexed; campus-local naive time |
+| price | NUMERIC(10,2) | NOT NULL, check `price >= 0` |
 
-## Retained V1 tables
+### `seats` (fully used in V3)
 
-**`seats`**: `id` PK; `event_id` FK to events; `section`, `row_label`, `number`; unique `(event_id, section, row_label, number)`; `number > 0`. No seat management UI.
+| Field | Type | Constraints |
+| --- | --- | --- |
+| id | Integer | Primary key |
+| event_id | Integer | NOT NULL, FK -> `events.id`, indexed |
+| section | VARCHAR(30) | NOT NULL |
+| row_label | VARCHAR(10) | NOT NULL |
+| number | Integer | NOT NULL, check `number > 0` |
 
-**`bookings`**: `id` PK; `user_id` FK to users; `seat_id` FK to seats; `status` in `reserved/cancelled`; `created_at`. No booking creation or editing UI.
+`UNIQUE (event_id, section, row_label, number)` prevents duplicate labels in an event/section. The default seat map creates `Main` section, rows `A`–`F`, 10 seats per row.
 
-Relationships: `User 1:N Booking`, `Event 1:N Seat`, `Seat 1:N Booking`.
+### `bookings` (fully used in V3)
 
-## Sample data lifecycle
+| Field | Type | Constraints |
+| --- | --- | --- |
+| id | Integer | Primary key |
+| user_id | Integer | NOT NULL, FK -> `users.id`, indexed |
+| seat_id | Integer | NOT NULL, FK -> `seats.id`, indexed |
+| status | VARCHAR(20) | NOT NULL, default `reserved`, check `reserved` / `cancelled` |
+| price_at_booking | NUMERIC(10,2) | NOT NULL, saved unit price; default 0 for migration compatibility |
+| created_at | DATETIME | NOT NULL, default UTC timestamp |
 
-The admin/local operator explicitly calls `python -m flask --app run.py seed-events` to add four illustrated events when the events table is empty. Unlike V1's startup seeding, a restart does not recreate deleted events.
+**Critical SQLite constraint:**
 
-## Limits and migration notes
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_seat
+ON bookings (seat_id) WHERE status = 'reserved';
+```
 
-- `db.create_all()` initializes missing tables; it does not perform arbitrary schema changes.
-- Automatic V1 compatibility handles only the `users.role` column on SQLite.
-- The V1 role upgrade preserves existing rows; make a backup before copying/migrating a database.
-- Event time zones are not converted; configure a campus-wide timezone before production.
-- SQLite foreign-key behavior and booking concurrency must be explicitly designed and tested before seat/booking features are implemented.
-- Rate limiting, email verification, stronger session/deployment controls, and formal migration tooling are production hardening tasks outside V2.
+This permits a seat's **cancelled** booking records to remain as historical rows while allowing only **one active reservation**. Application-level availability checks improve UX but this index is the final concurrency safeguard.
+
+## SQLAlchemy relations
+
+- `User.bookings <-> Booking.user`
+- `Event.seats <-> Seat.event`
+- `Seat.bookings <-> Booking.seat`
+- `Booking.event` convenience property resolves `booking.seat.event`.
+
+## Reservation write transaction
+
+1. Verify signed-in user, future event and pending session selection.
+2. Query all requested `Seat` rows by `Seat.event_id`, reject duplicates/cross-event IDs/max over six.
+3. Query active booked seat IDs, reject if any requested seat already taken.
+4. Insert all new booking rows in one transaction, each with event-price snapshot.
+5. Commit. If another transaction got the seat first, the unique index triggers `IntegrityError`; roll back **all** inserted rows and direct user to retry.
+
+## Cancellation and event deletion
+
+Cancel changes only `Booking.status` from `reserved` to `cancelled`, retaining the record and releasing the seat under the partial unique index. Only the booking owner can request cancellation. Admin event deletion removes unbooked seats first, then deletes the event; it refuses deletion if **any** booking (even cancelled) references a seat to preserve history.
+
+## V2 upgrade notes
+
+The app runs a targeted SQLite check on startup. For an older `bookings` table lacking `price_at_booking`, it adds `NUMERIC(10,2) NOT NULL DEFAULT 0`, then initializes historic prices from their corresponding event. It creates the active-seat unique index if missing. Any conflicting existing active bookings cause a startup error; **no rows are dropped or rewritten to conceal duplicates**. Events with no seats are assigned 60 default seats. Existing event seats are not overwritten.
+
+**Always back up the database before upgrades.** `db.create_all()` is not a migration framework. The current upgrade works with the V1/V2 schema only and is intended for local development.

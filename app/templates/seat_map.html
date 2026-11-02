@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Choose seats · {{ event.title }}{% endblock %}
+{% block content %}
+<section class="page-heading container seat-heading">
+  <a class="back-link" href="{{ url_for('main.event_detail', event_id=event.id) }}">← Back to event details</a>
+  <span class="section-kicker">CHOOSE YOUR PLACE</span>
+  <h1>Find your <em>perfect seat.</em></h1>
+  <p>{{ event.title }} · {{ event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
+</section>
+<section class="container seat-layout">
+  <div class="seat-card">
+    <div class="seat-card-top">
+      <h2>Stadium seating</h2>
+      <p id="availability-summary" role="status" aria-live="polite">{{ seats|length - occupied|length }} of {{ seats|length }} seats available</p>
+    </div>
+    <div class="seat-legend" aria-label="Seat statuses">
+      <span><i class="seat-key available"></i> Available</span>
+      <span><i class="seat-key selected"></i> Selected</span>
+      <span><i class="seat-key taken"></i> Reserved</span>
+    </div>
+    <div class="stage"><span>FIELD / STAGE</span></div>
+    <div class="seat-scroll" role="region" aria-label="Seating grid. Scroll horizontally on narrow screens." tabindex="0">
+      <div class="seat-grid" id="seat-grid">
+      {% for seat in seats %}
+        <button type="button" class="seat-button{% if seat.id in occupied %} is-taken{% endif %}"
+          data-seat-id="{{ seat.id }}" data-label="{{ seat.label }}"
+          aria-label="Row {{ seat.row_label }}, seat {{ seat.number }}{% if seat.id in occupied %}, reserved{% else %}, available{% endif %}"
+          aria-pressed="false" {% if seat.id in occupied or not booking_open %}disabled{% endif %}>
+          {{ seat.label }}
+        </button>
+      {% endfor %}
+      </div>
+    </div>
+    <p class="seat-hint">Select up to {{ max_seats }} seats. Availability updates every five seconds and is checked again on confirmation.</p>
+  </div>
+  <aside class="seat-checkout" aria-label="Selected seats">
+    <span class="section-kicker">YOUR SELECTION</span>
+    <h2>Booking summary</h2>
+    <div class="checkout-line"><span>Price per seat</span><strong>${{ '%.2f'|format(event.price) }}</strong></div>
+    <div class="checkout-line"><span>Seats selected</span><strong id="seat-count">0</strong></div>
+    <div class="seat-selection-label" id="selected-labels" aria-live="polite">No seats selected yet</div>
+    <div class="checkout-total"><span>Estimated total</span><strong id="total-price">$0.00</strong></div>
+    {% if booking_open %}
+    <form id="seat-booking-form" action="{{ url_for('main.booking_review', event_id=event.id) }}" method="post"
+          data-availability-url="{{ url_for('main.event_seat_availability', event_id=event.id) }}"
+          data-price="{{ event.price }}" data-max-seats="{{ max_seats }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="seat_ids" id="seat-ids" value="">
+      <button type="submit" class="button button-primary checkout-button" id="review-button" disabled>Review reservation →</button>
+    </form>
+    {% else %}
+    <p class="flash flash-error">Reservations are closed for this event.</p>
+    {% endif %}
+    <p class="seat-checkout-note" id="seat-status" role="status" aria-live="polite">No payment is collected in Version 3.</p>
+  </aside>
+</section>
+{% endblock %}

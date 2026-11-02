@@ -3,14 +3,15 @@
 from datetime import datetime
 from functools import wraps
 
-from flask import abort, Blueprint, flash, redirect, render_template, request, url_for
+from flask import abort, Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from . import db
 from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm
-from .models import Event, User
+from .models import Booking, Event, Seat, User
+from .seating import MAX_SEATS_PER_BOOKING, add_default_seats, reserved_seat_ids
 
 main = Blueprint("main", __name__)
 
@@ -56,7 +57,7 @@ def events():
 def event_detail(event_id):
     """Render a public event detail page."""
     event = db.get_or_404(Event, event_id)
-    return render_template("event_detail.html", event=event)
+    return render_template("event_detail.html", event=event, now=datetime.now())
 
 
 @main.route("/register", methods=["GET", "POST"])
@@ -106,6 +107,7 @@ def login():
 @login_required
 def logout():
     """Terminate the session; global CSRF protection requires a valid token."""
+    session.pop("pending_booking", None)
     logout_user()
     flash("You have signed out.", "info")
     return redirect(url_for("main.index"))
@@ -139,8 +141,9 @@ def admin_event_create():
         event = Event()
         form.populate_obj(event)
         db.session.add(event)
+        add_default_seats(event)
         db.session.commit()
-        flash("Event created successfully.", "success")
+        flash("Event created with 60 seats.", "success")
         return redirect(url_for("main.event_detail", event_id=event.id))
     return render_template("admin/event_form.html", form=form, heading="Create event")
 
@@ -169,10 +172,161 @@ def admin_event_delete(event_id):
     if not form.validate_on_submit():
         abort(400)
     event = db.get_or_404(Event, event_id)
-    if event.seats:
-        flash("This event has assigned seats and cannot be deleted.", "error")
+    # Preserve historical bookings, including cancelled bookings, for auditing.
+    any_booking = db.session.scalar(
+        select(Booking.id).join(Seat).where(Seat.event_id == event.id).limit(1)
+    )
+    if any_booking is not None:
+        flash("This event has booking history and cannot be deleted.", "error")
     else:
+        for seat in list(event.seats):
+            db.session.delete(seat)
         db.session.delete(event)
         db.session.commit()
         flash("Event deleted successfully.", "success")
     return redirect(url_for("main.admin_events"))
+
+
+# V3 reservation journey. A Booking reserves exactly one seat; multiple rows
+# commit together as a single user's multi-seat submission.
+
+def _requested_seats(event, raw):
+    """Validate client IDs, event ownership and fresh occupancy; return seats.
+
+    Returns (seats, message). Client-side disabled buttons are never trusted.
+    """
+    if not isinstance(raw, str) or len(raw) > 120:
+        return None, "Choose between 1 and 6 seats."
+    parts = raw.split(",")
+    if (not 1 <= len(parts) <= MAX_SEATS_PER_BOOKING
+            or any(not item.isascii() or not item.isdecimal() for item in parts)):
+        return None, "Choose between 1 and 6 valid seats."
+    ids = [int(part) for part in parts]
+    if len(set(ids)) != len(ids):
+        return None, "Each seat can only be selected once."
+    seats = db.session.scalars(
+        select(Seat).where(Seat.event_id == event.id, Seat.id.in_(ids))
+        .order_by(Seat.row_label, Seat.number)
+    ).all()
+    if len(seats) != len(ids):
+        return None, "Some seats do not belong to this event."
+    if reserved_seat_ids(event.id).intersection(ids):
+        return None, "One or more seats have just been reserved. Please choose again."
+    return seats, None
+
+
+def _future_event(event):
+    """Do not accept new reservations after the advertised event start."""
+    if event.starts_at <= datetime.now():
+        flash("Reservations have closed for this event.", "error")
+        return False
+    return True
+
+
+@main.get("/events/<int:event_id>/seats")
+@login_required
+def seat_map(event_id):
+    """Interactive seat selection, backed by the current SQLite inventory."""
+    event = db.get_or_404(Event, event_id)
+    seats = db.session.scalars(
+        select(Seat).where(Seat.event_id == event.id)
+        .order_by(Seat.row_label, Seat.number)
+    ).all()
+    return render_template("seat_map.html", event=event, seats=seats,
+                           occupied=reserved_seat_ids(event.id),
+                           booking_open=event.starts_at > datetime.now(),
+                           max_seats=MAX_SEATS_PER_BOOKING)
+
+
+@main.get("/api/events/<int:event_id>/seats")
+def event_seat_availability(event_id):
+    """Return current seat occupancy; poll every 5s for near-real-time state."""
+    event = db.get_or_404(Event, event_id)
+    total = db.session.scalar(
+        select(db.func.count(Seat.id)).where(Seat.event_id == event.id)
+    )
+    occupied = sorted(reserved_seat_ids(event.id))
+    result = jsonify(event_id=event.id, reserved_seat_ids=occupied,
+                     available=total - len(occupied), total=total,
+                     booking_open=event.starts_at > datetime.now())
+    result.headers["Cache-Control"] = "no-store, max-age=0"
+    return result
+
+
+@main.post("/events/<int:event_id>/booking/review")
+@login_required
+def booking_review(event_id):
+    """Review selected seats and total before the user confirms a write."""
+    event = db.get_or_404(Event, event_id)
+    session.pop("pending_booking", None)
+    if not _future_event(event):
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    seats, error = _requested_seats(event, request.form.get("seat_ids"))
+    if error:
+        flash(error, "error")
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    session["pending_booking"] = {"event_id": event.id,
+                                  "seat_ids": [seat.id for seat in seats]}
+    return render_template("booking_review.html", event=event, seats=seats,
+                           total=event.price * len(seats))
+
+
+@main.post("/events/<int:event_id>/booking/confirm")
+@login_required
+def booking_confirm(event_id):
+    """Atomically create reservations with a DB-level unique active-seat guard."""
+    event = db.get_or_404(Event, event_id)
+    pending = session.pop("pending_booking", None)
+    if not pending or pending.get("event_id") != event.id:
+        flash("Select seats and review them before confirming.", "error")
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    if not _future_event(event):
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    seats, error = _requested_seats(event, ",".join(str(i) for i in pending["seat_ids"]))
+    if error:
+        flash(error, "error")
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    bookings = [Booking(user_id=current_user.id, seat_id=seat.id,
+                        status="reserved", price_at_booking=event.price)
+                for seat in seats]
+    db.session.add_all(bookings)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # The partial unique index wins if somebody booked during confirmation.
+        db.session.rollback()
+        flash("A selected seat was taken moments ago. No seats were booked.", "error")
+        return redirect(url_for("main.seat_map", event_id=event.id))
+    flash(f"Booking confirmed for {len(bookings)} seat(s).", "success")
+    return redirect(url_for("main.booking_history"))
+
+
+@main.get("/bookings")
+@login_required
+def booking_history():
+    """Show the current user's active and cancelled one-seat reservations."""
+    bookings = db.session.scalars(
+        select(Booking).join(Seat).join(Event)
+        .where(Booking.user_id == current_user.id)
+        .order_by(Booking.created_at.desc(), Booking.id.desc())
+    ).all()
+    return render_template("booking_history.html", bookings=bookings)
+
+
+@main.post("/bookings/<int:booking_id>/cancel")
+@login_required
+def cancel_booking(booking_id):
+    """Permit only the owner to cancel; preserve cancelled records."""
+    booking = db.session.scalar(
+        select(Booking).where(Booking.id == booking_id,
+                              Booking.user_id == current_user.id)
+    )
+    if booking is None:
+        abort(404)  # Hide other users' reservation IDs.
+    if booking.status != "reserved":
+        flash("This reservation is already cancelled.", "info")
+    else:
+        booking.status = "cancelled"
+        db.session.commit()
+        flash(f"Cancelled seat {booking.seat.label} for {booking.event.title}.", "success")
+    return redirect(url_for("main.booking_history"))

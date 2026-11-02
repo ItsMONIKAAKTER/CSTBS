@@ -50,9 +50,12 @@ def create_app(test_config=None):
 
     with app.app_context():
         db.create_all()  # Convenient for local SQLite; not a full migration system.
-        from .migrations import upgrade_v1_user_schema
+        from .migrations import upgrade_v1_user_schema, upgrade_v2_booking_constraints
+        from .seating import backfill_empty_event_seats
 
         upgrade_v1_user_schema()
+        upgrade_v2_booking_constraints()
+        backfill_empty_event_seats()
 
     @app.cli.command("seed-events")
     def seed_events_command():
@@ -60,7 +63,7 @@ def create_app(test_config=None):
         from .seed import seed_demo_events
 
         count = seed_demo_events()
-        click.echo(f"Seeded {count} sample event(s).")
+        click.echo(f"Seeded {count} sample event(s), each with 60 seats.")
 
     @app.cli.command("set-role")
     @click.argument("email")

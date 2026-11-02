@@ -1,4 +1,4 @@
-"""Launch the CSTBS Version 2 local development server."""
+"""Launch the CSTBS Version 3 local development server."""
 
 from app import create_app
 
