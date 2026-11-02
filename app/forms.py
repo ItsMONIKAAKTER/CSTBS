@@ -4,6 +4,8 @@ from flask_wtf import FlaskForm
 from wtforms import (
     DateTimeLocalField,
     DecimalField,
+    IntegerField,
+    SelectField,
     PasswordField,
     StringField,
     SubmitField,
@@ -70,3 +72,28 @@ class DeleteEventForm(FlaskForm):
     """Dedicated POST-only form for destructive event actions."""
 
     submit = SubmitField("Delete event")
+
+
+class CreateSectionForm(FlaskForm):
+    """Generate seating inventory in a distinct event section."""
+    name = StringField("Section name", validators=[DataRequired(), Length(min=2, max=30),
+        Regexp(r"^[A-Za-z0-9][A-Za-z0-9 _-]*$", message="Use letters, numbers, spaces, _ or -." )])
+    rows = IntegerField("Rows", validators=[InputRequired(), NumberRange(min=1, max=20)])
+    seats_per_row = IntegerField("Seats per row",
+        validators=[InputRequired(), NumberRange(min=1, max=30)])
+    submit = SubmitField("Add section")
+
+
+class RenameSectionForm(FlaskForm):
+    """Change a section's display name without altering bookings."""
+    old_name = StringField("Existing section", validators=[DataRequired(), Length(max=30)])
+    new_name = StringField("New section name", validators=[DataRequired(), Length(min=2, max=30),
+        Regexp(r"^[A-Za-z0-9][A-Za-z0-9 _-]*$")])
+    submit = SubmitField("Rename section")
+
+
+class RoleForm(FlaskForm):
+    """Admin-only role change; cannot be supplied during registration."""
+    role = SelectField("Role", choices=[("student", "Student"), ("staff", "Staff"),
+                                        ("admin", "Admin")], validators=[DataRequired()])
+    submit = SubmitField("Update role")

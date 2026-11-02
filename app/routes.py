@@ -1,7 +1,6 @@
 """Public event browsing, account authentication, and admin event CRUD."""
 
 from datetime import datetime
-from functools import wraps
 
 from flask import abort, Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -9,21 +8,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from . import db
+from .authz import admin_required
+from .notifications import notify_booking_confirmed, notify_booking_cancelled
 from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm
 from .models import Booking, Event, Seat, User
 from .seating import MAX_SEATS_PER_BOOKING, add_default_seats, reserved_seat_ids
 
 main = Blueprint("main", __name__)
-
-
-def admin_required(view):
-    """Return HTTP 403 for logged-in users who are not administrators."""
-    @wraps(view)
-    def decorated(*args, **kwargs):
-        if not current_user.is_admin:
-            abort(403)
-        return view(*args, **kwargs)
-    return decorated
 
 
 def safe_next_url(target):
@@ -210,6 +201,8 @@ def _requested_seats(event, raw):
     ).all()
     if len(seats) != len(ids):
         return None, "Some seats do not belong to this event."
+    if any(seat.is_blocked for seat in seats):
+        return None, "A selected seat is blocked by the stadium administrator."
     if reserved_seat_ids(event.id).intersection(ids):
         return None, "One or more seats have just been reserved. Please choose again."
     return seats, None
@@ -234,6 +227,7 @@ def seat_map(event_id):
     ).all()
     return render_template("seat_map.html", event=event, seats=seats,
                            occupied=reserved_seat_ids(event.id),
+                           blocked={seat.id for seat in seats if seat.is_blocked},
                            booking_open=event.starts_at > datetime.now(),
                            max_seats=MAX_SEATS_PER_BOOKING)
 
@@ -246,8 +240,11 @@ def event_seat_availability(event_id):
         select(db.func.count(Seat.id)).where(Seat.event_id == event.id)
     )
     occupied = sorted(reserved_seat_ids(event.id))
+    blocked = sorted(db.session.scalars(select(Seat.id).where(
+        Seat.event_id == event.id, Seat.is_blocked.is_(True))).all())
     result = jsonify(event_id=event.id, reserved_seat_ids=occupied,
-                     available=total - len(occupied), total=total,
+                     blocked_seat_ids=blocked,
+                     available=total - len(set(occupied) | set(blocked)), total=total,
                      booking_open=event.starts_at > datetime.now())
     result.headers["Cache-Control"] = "no-store, max-age=0"
     return result
@@ -297,6 +294,7 @@ def booking_confirm(event_id):
         db.session.rollback()
         flash("A selected seat was taken moments ago. No seats were booked.", "error")
         return redirect(url_for("main.seat_map", event_id=event.id))
+    notify_booking_confirmed(current_user, event, bookings)
     flash(f"Booking confirmed for {len(bookings)} seat(s).", "success")
     return redirect(url_for("main.booking_history"))
 
@@ -328,5 +326,6 @@ def cancel_booking(booking_id):
     else:
         booking.status = "cancelled"
         db.session.commit()
+        notify_booking_cancelled(booking)
         flash(f"Cancelled seat {booking.seat.label} for {booking.event.title}.", "success")
     return redirect(url_for("main.booking_history"))

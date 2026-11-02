@@ -77,6 +77,7 @@ class Seat(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False, index=True)
     section = db.Column(db.String(30), nullable=False)
+    is_blocked = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
     row_label = db.Column(db.String(10), nullable=False)
     number = db.Column(db.Integer, nullable=False)
 
@@ -86,6 +87,11 @@ class Seat(db.Model):
     @property
     def label(self):
         return f"{self.row_label}{self.number}"
+
+    @property
+    def display_label(self):
+        """Unambiguous seat name across multiple sections."""
+        return f"{self.section} · {self.label}"
 
 
 class Booking(db.Model):

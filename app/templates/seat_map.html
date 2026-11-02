@@ -11,23 +11,34 @@
   <div class="seat-card">
     <div class="seat-card-top">
       <h2>Stadium seating</h2>
-      <p id="availability-summary" role="status" aria-live="polite">{{ seats|length - occupied|length }} of {{ seats|length }} seats available</p>
+      <p id="availability-summary" role="status" aria-live="polite">{{ seats|length - occupied|length - blocked|length }} of {{ seats|length }} seats available</p>
     </div>
     <div class="seat-legend" aria-label="Seat statuses">
       <span><i class="seat-key available"></i> Available</span>
       <span><i class="seat-key selected"></i> Selected</span>
       <span><i class="seat-key taken"></i> Reserved</span>
+      <span><i class="seat-key blocked"></i> Blocked</span>
     </div>
     <div class="stage"><span>FIELD / STAGE</span></div>
     <div class="seat-scroll" role="region" aria-label="Seating grid. Scroll horizontally on narrow screens." tabindex="0">
-      <div class="seat-grid" id="seat-grid">
-      {% for seat in seats %}
-        <button type="button" class="seat-button{% if seat.id in occupied %} is-taken{% endif %}"
-          data-seat-id="{{ seat.id }}" data-label="{{ seat.label }}"
-          aria-label="Row {{ seat.row_label }}, seat {{ seat.number }}{% if seat.id in occupied %}, reserved{% else %}, available{% endif %}"
-          aria-pressed="false" {% if seat.id in occupied or not booking_open %}disabled{% endif %}>
-          {{ seat.label }}
-        </button>
+      <div id="seat-grid">
+      {% for section, section_seats in seats|groupby('section') %}
+        <h3 class="seat-section-heading">{{ section }}</h3>
+        {% for row_name, row_seats in section_seats|groupby('row_label') %}
+        <div class="seat-row">
+          <span class="seat-row-label" aria-label="Row {{ row_name }}">{{ row_name }}</span>
+          <div class="seat-grid" style="--seat-cols: {{ row_seats|length }}">
+            {% for seat in row_seats %}
+            <button type="button" class="seat-button{% if seat.id in occupied %} is-taken{% elif seat.id in blocked %} is-blocked{% endif %}"
+              data-seat-id="{{ seat.id }}" data-label="{{ seat.display_label }}"
+              aria-label="{{ seat.display_label }}{% if seat.id in occupied %}, reserved{% elif seat.id in blocked %}, blocked{% else %}, available{% endif %}"
+              aria-pressed="false" {% if seat.id in occupied or seat.id in blocked or not booking_open %}disabled{% endif %}>
+              {{ seat.label }}
+            </button>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
       {% endfor %}
       </div>
     </div>
@@ -51,7 +62,7 @@
     {% else %}
     <p class="flash flash-error">Reservations are closed for this event.</p>
     {% endif %}
-    <p class="seat-checkout-note" id="seat-status" role="status" aria-live="polite">No payment is collected in Version 3.</p>
+    <p class="seat-checkout-note" id="seat-status" role="status" aria-live="polite">No payment is collected in Version 4.</p>
   </aside>
 </section>
 {% endblock %}

@@ -1,89 +1,58 @@
-# CSTBS Version 3 — SQLite Data Model
+# CSTBS Version 4 — SQLAlchemy and SQLite Design
 
-## Entity overview
+## Entity relationships
 
-`User 1 -> many Booking -> 1 Seat -> many-to-1 Event`.
+- `User (1) → Booking (0..*)`: user owns each reservation; role `student | staff | admin`.
+- `Event (1) → Seat (0..*)`: each seat belongs to a single event.
+- `Seat (1) → Booking (0..*)`: one seat can have many *cancelled* historical bookings but only one *active* booking.
+- Section is a **string attribute of Seat** (not a separate `Section` table). Admin section operations create/rename/remove groups of seats while retaining the same seat IDs through renames.
 
-A **Seat** is event-specific. A **Booking** refers to one seat and one user. Selecting several seats writes several bookings together; each may later be cancelled separately. There is no order-group entity in Version 3.
+## Versioned tables
 
-## Tables
-
-### `users` (retained from V2)
-
-| Field | Type | Constraints |
+| Table | Core columns | V4 impact |
 | --- | --- | --- |
-| id | Integer | Primary key |
-| full_name | VARCHAR(120) | NOT NULL |
-| email | VARCHAR(254) | NOT NULL, UNIQUE, indexed |
-| password_hash | VARCHAR(255) | NOT NULL |
-| role | VARCHAR(20) | NOT NULL, default `student`, check `student`/`staff`/`admin` |
-| created_at | DATETIME | NOT NULL, UTC (naive for SQLite) |
+| `users` | id, full_name, email UNIQUE, password_hash, role, created_at | Existing V2 roles; admin UI may change other users. |
+| `events` | id, title, category, description, venue, starts_at, price | V2 event CRUD retained. |
+| `seats` | id, event_id FK, section, row_label, number, **is_blocked** | **New V4 BOOLEAN NOT NULL DEFAULT 0**, plus existing unique `(event_id, section, row_label, number)` and positive number check. |
+| `bookings` | id, user_id FK, seat_id FK, status, price_at_booking, created_at | Existing V3 records retained; admin can cancel but not delete. |
 
-### `events` (retained from V2)
-
-| Field | Type | Constraints |
-| --- | --- | --- |
-| id | Integer | Primary key |
-| title | VARCHAR(150) | NOT NULL |
-| category | VARCHAR(40) | NOT NULL |
-| description | TEXT | NOT NULL |
-| venue | VARCHAR(120) | NOT NULL |
-| starts_at | DATETIME | NOT NULL, indexed; campus-local naive time |
-| price | NUMERIC(10,2) | NOT NULL, check `price >= 0` |
-
-### `seats` (fully used in V3)
-
-| Field | Type | Constraints |
-| --- | --- | --- |
-| id | Integer | Primary key |
-| event_id | Integer | NOT NULL, FK -> `events.id`, indexed |
-| section | VARCHAR(30) | NOT NULL |
-| row_label | VARCHAR(10) | NOT NULL |
-| number | Integer | NOT NULL, check `number > 0` |
-
-`UNIQUE (event_id, section, row_label, number)` prevents duplicate labels in an event/section. The default seat map creates `Main` section, rows `A`–`F`, 10 seats per row.
-
-### `bookings` (fully used in V3)
-
-| Field | Type | Constraints |
-| --- | --- | --- |
-| id | Integer | Primary key |
-| user_id | Integer | NOT NULL, FK -> `users.id`, indexed |
-| seat_id | Integer | NOT NULL, FK -> `seats.id`, indexed |
-| status | VARCHAR(20) | NOT NULL, default `reserved`, check `reserved` / `cancelled` |
-| price_at_booking | NUMERIC(10,2) | NOT NULL, saved unit price; default 0 for migration compatibility |
-| created_at | DATETIME | NOT NULL, default UTC timestamp |
-
-**Critical SQLite constraint:**
+### Active reservation uniqueness (V3, retained)
 
 ```sql
 CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_seat
 ON bookings (seat_id) WHERE status = 'reserved';
 ```
 
-This permits a seat's **cancelled** booking records to remain as historical rows while allowing only **one active reservation**. Application-level availability checks improve UX but this index is the final concurrency safeguard.
+### Blocked-seat integrity (new V4)
 
-## SQLAlchemy relations
+Three SQLite triggers in `app/migrations.py` reject:
 
-- `User.bookings <-> Booking.user`
-- `Event.seats <-> Seat.event`
-- `Seat.bookings <-> Booking.seat`
-- `Booking.event` convenience property resolves `booking.seat.event`.
+1. Inserting a `reserved` booking when `seats.is_blocked = 1`.
+2. Updating a booking to `reserved` (or moving a reserved booking to another seat) when its target seat is blocked.
+3. Setting `seats.is_blocked = 1` while a `reserved` booking exists on that seat.
 
-## Reservation write transaction
+The routes also do fresh checks for understandable error messages, but the database triggers protect write races. Booking failures return a conflict message, and no partial multi-seat reservation is saved.
 
-1. Verify signed-in user, future event and pending session selection.
-2. Query all requested `Seat` rows by `Seat.event_id`, reject duplicates/cross-event IDs/max over six.
-3. Query active booked seat IDs, reject if any requested seat already taken.
-4. Insert all new booking rows in one transaction, each with event-price snapshot.
-5. Commit. If another transaction got the seat first, the unique index triggers `IntegrityError`; roll back **all** inserted rows and direct user to retry.
+### V3-to-V4 SQLite upgrade
 
-## Cancellation and event deletion
+Local startup executes `db.create_all()` then explicit compatibility upgrades in this order: legacy V1 role, V2 booking price/index, **V3-to-V4 seat-blocking column and triggers**. A pre-existing V3 `seats` table gains the column through:
 
-Cancel changes only `Booking.status` from `reserved` to `cancelled`, retaining the record and releasing the seat under the partial unique index. Only the booking owner can request cancellation. Admin event deletion removes unbooked seats first, then deletes the event; it refuses deletion if **any** booking (even cancelled) references a seat to preserve history.
+```sql
+ALTER TABLE seats ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT 0;
+```
 
-## V2 upgrade notes
+A fresh database already has the column through SQLAlchemy model creation. Existing rows remain present and initially unblocked. Re-running the upgrade is idempotent via column introspection and `CREATE TRIGGER IF NOT EXISTS`. Always back up your database before upgrading. These are limited **development compatibility scripts, not general production migrations**.
 
-The app runs a targeted SQLite check on startup. For an older `bookings` table lacking `price_at_booking`, it adds `NUMERIC(10,2) NOT NULL DEFAULT 0`, then initializes historic prices from their corresponding event. It creates the active-seat unique index if missing. Any conflicting existing active bookings cause a startup error; **no rows are dropped or rewritten to conceal duplicates**. Events with no seats are assigned 60 default seats. Existing event seats are not overwritten.
+## Data lifecycle
 
-**Always back up the database before upgrades.** `db.create_all()` is not a migration framework. The current upgrade works with the V1/V2 schema only and is intended for local development.
+1. Admin publishes an event: `Event` plus 60 default `Seat` rows.
+2. Admin may add sections (`Seat.section`, `row_label`, `number`), rename sections or toggle `is_blocked` for unreserved seats.
+3. User selects unblocked/unreserved seats: booking review verifies event, row membership and availability.
+4. Confirmation creates one `Booking` per seat with `price_at_booking`, atomically; SQLite constraints/triggers enforce safety.
+5. After commit, application sends/logs confirmation email. Failed mail does not change saved bookings.
+6. Cancellation flips `Booking.status` to `cancelled`, keeps the row, frees the seat and sends/logs cancellation email. An admin may perform this for any owner.
+7. Event and section removal refuse any booking record, including cancelled rows, to avoid orphaning history.
+
+## Limitations
+
+`Seat.section` is denormalized, sufficient for V4. Seat blocks are stored per event-seat rather than venue-wide physical locations. Changes to event or seat titles later affect how old bookings are displayed; add immutable snapshots or a normalized venue layout in a later production design. Calendar times remain campus-local naive datetime. SQLite write concurrency is appropriate for development, not a large public ticket sale.

@@ -5,6 +5,7 @@ from pathlib import Path
 import click
 from flask import Flask
 from flask_login import LoginManager
+from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import select
@@ -15,6 +16,7 @@ from config import Config
 db = SQLAlchemy()
 login_manager = LoginManager()
 csrf = CSRFProtect()
+mail = Mail()
 
 
 def create_app(test_config=None):
@@ -32,11 +34,13 @@ def create_app(test_config=None):
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+    mail.init_app(app)
     login_manager.login_view = "main.login"
     login_manager.login_message_category = "info"
 
     from .models import User  # Register all SQLAlchemy models.
     from .routes import main
+    from .admin import admin
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -47,14 +51,16 @@ def create_app(test_config=None):
             return None
 
     app.register_blueprint(main)
+    app.register_blueprint(admin)
 
     with app.app_context():
         db.create_all()  # Convenient for local SQLite; not a full migration system.
-        from .migrations import upgrade_v1_user_schema, upgrade_v2_booking_constraints
+        from .migrations import upgrade_v1_user_schema, upgrade_v2_booking_constraints, upgrade_v3_seat_blocking
         from .seating import backfill_empty_event_seats
 
         upgrade_v1_user_schema()
         upgrade_v2_booking_constraints()
+        upgrade_v3_seat_blocking()
         backfill_empty_event_seats()
 
     @app.cli.command("seed-events")

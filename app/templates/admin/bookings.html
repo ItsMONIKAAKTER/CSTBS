@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Manage bookings{% endblock %}
+{% block content %}
+<section class="page-heading container admin-page-title">
+  <span class="section-kicker">ADMIN / RESERVATIONS</span><h1>All <em>bookings.</em></h1>
+  <p>Browse booking history and cancel active reservations. Cancellation sends a notification to the owner.</p>
+</section>
+<section class="container admin-section">
+  {% include 'admin/_nav.html' %}
+  <div class="admin-panel">
+    <form class="booking-filters" action="{{ url_for('admin.bookings') }}" method="get">
+      <label for="status">Status</label>
+      <select class="form-control" name="status" id="status">
+        {% for value in ['all', 'reserved', 'cancelled'] %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}
+      </select>
+      <label for="event_id">Event</label><select class="form-control" id="event_id" name="event_id"><option value="">All events</option>
+        {% for event in events %}<option value="{{ event.id }}" {% if selected_event == event.id %}selected{% endif %}>{{ event.title }}</option>{% endfor %}
+      </select>
+      <button class="button button-secondary button-small" type="submit">Filter</button>
+    </form>
+    <p class="admin-help">{{ page.total }} matching reservation(s), newest first.</p>
+    {% if bookings %}<div class="table-scroll"><table class="admin-table">
+      <thead><tr><th>Booking</th><th>Owner</th><th>Event / Seat</th><th>Price</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>{% for booking in bookings %}<tr>
+        <td>#{{ booking.id }}<small>{{ booking.created_at.strftime('%b %d, %Y') }}</small></td>
+        <td><strong>{{ booking.user.full_name }}</strong><small>{{ booking.user.email }}</small></td>
+        <td>{{ booking.event.title }}<small>{{ booking.seat.display_label }}</small></td>
+        <td>${{ '%.2f'|format(booking.price_at_booking) }}</td>
+        <td><span class="history-state {{ 'is-active' if booking.status == 'reserved' else 'is-cancelled' }}">{{ booking.status|capitalize }}</span></td>
+        <td>{% if booking.status == 'reserved' %}<form method="post" action="{{ url_for('admin.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this user's booking?">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="button button-danger button-small">Cancel</button>
+        </form>{% else %}<span class="muted">—</span>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+    <nav aria-label="Booking pages" class="pagination">
+      {% if page.has_prev %}<a href="{{ url_for('admin.bookings', page=page.prev_num, status=selected_status, event_id=selected_event) }}">← Previous</a>{% endif %}
+      <span>Page {{ page.page }} of {{ page.pages }}</span>
+      {% if page.has_next %}<a href="{{ url_for('admin.bookings', page=page.next_num, status=selected_status, event_id=selected_event) }}">Next →</a>{% endif %}
+    </nav>
+    {% else %}<p class="empty-state">No bookings match your filters.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}
