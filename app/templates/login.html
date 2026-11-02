@@ -5,8 +5,7 @@
     <div class="auth-card">
         <span class="section-kicker">WELCOME BACK</span>
         <h1>Sign in to CSTBS</h1>
-        <p class="auth-subtitle">Preview the future campus account experience.</p>
-        <div class="demo-notice" role="note"><strong>UI preview only.</strong> Sign-in is not functional. Do not enter a real password.</div>
+        <p class="auth-subtitle">Access your campus account and stay connected with upcoming events.</p>
         <form method="post" novalidate>
             {{ form.hidden_tag() }}
             {% if form.csrf_token.errors %}<p class="field-error" role="alert">Form security check failed. Refresh and try again.</p>{% endif %}
@@ -22,7 +21,7 @@
             </div>
             {{ form.submit(class='button button-primary button-full') }}
         </form>
-        <p class="auth-switch">New to CSTBS? <a href="{{ url_for('main.register') }}">Preview registration</a></p>
+        <p class="auth-switch">New to CSTBS? <a href="{{ url_for('main.register') }}">Create an account</a></p>
     </div>
 </section>
 {% endblock %}

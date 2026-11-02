@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#11233a">
-    <meta name="description" content="Browse upcoming events at the campus stadium.">
+    <meta name="description" content="Find campus stadium events and manage your CSTBS account.">
     <title>{% block title %}CSTBS{% endblock %} | Campus Stadium</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
@@ -21,12 +21,22 @@
             <div class="nav-links" id="nav-links">
                 <a href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}aria-current="page"{% endif %}>Home</a>
                 <a href="{{ url_for('main.events') }}" {% if request.endpoint in ['main.events', 'main.event_detail'] %}aria-current="page"{% endif %}>Events</a>
-                <a href="{{ url_for('main.login') }}" {% if request.endpoint == 'main.login' %}aria-current="page"{% endif %}>Login</a>
-                <a class="nav-register" href="{{ url_for('main.register') }}" {% if request.endpoint == 'main.register' %}aria-current="page"{% endif %}>Register <span aria-hidden="true">↗</span></a>
+                {% if current_user.is_authenticated %}
+                    {% if current_user.is_admin %}
+                        <a href="{{ url_for('main.admin_events') }}" {% if request.endpoint and request.endpoint.startswith('main.admin_') %}aria-current="page"{% endif %}>Manage events</a>
+                    {% endif %}
+                    <a href="{{ url_for('main.account') }}" {% if request.endpoint == 'main.account' %}aria-current="page"{% endif %}>My account</a>
+                    <form class="logout-form" action="{{ url_for('main.logout') }}" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="logout-button" type="submit">Sign out</button>
+                    </form>
+                {% else %}
+                    <a href="{{ url_for('main.login') }}" {% if request.endpoint == 'main.login' %}aria-current="page"{% endif %}>Login</a>
+                    <a class="nav-register" href="{{ url_for('main.register') }}" {% if request.endpoint == 'main.register' %}aria-current="page"{% endif %}>Register <span aria-hidden="true">↗</span></a>
+                {% endif %}
             </div>
         </nav>
     </header>
-
     <main id="main-content">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% for category, message in messages %}
@@ -35,11 +45,10 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
-
     <footer class="site-footer">
         <div class="container footer-inner">
             <div><strong>CSTBS</strong><p>Campus Stadium Ticket Booking System</p></div>
-            <span>Version 1 prototype · No live bookings or accounts</span>
+            <span>Version 2.0 · Accounts and events · Ticket booking not yet available</span>
         </div>
     </footer>
 </body>

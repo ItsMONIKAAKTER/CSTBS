@@ -1,44 +1,57 @@
-# CSTBS Version 1 — UML Diagrams
+# CSTBS Version 2 — UML Diagrams (PlantUML)
 
-All diagrams below use [PlantUML](https://plantuml.com/) syntax. Paste the code into any PlantUML renderer to generate a diagram. Dashed interactions show **UI-only** behavior and do not imply real account or booking workflows.
+Diagrams below document implemented **Accounts and Events** behavior. Seat and Booking remain schema-only until a later version.
 
-## 1. Use case diagram
-
-Visitor can browse event data and inspect prototype account forms. There is **no booking use case in V1**.
+## 1. Use cases
 
 ```plantuml
 @startuml
 left to right direction
 actor Visitor
-rectangle "CSTBS V1" {
-  usecase "View homepage" as UC1
-  usecase "Browse events" as UC2
-  usecase "View event details" as UC3
-  usecase "Preview login form" as UC4
-  usecase "Preview registration form" as UC5
+actor Student
+actor Staff
+actor Admin
+Visitor <|-- Student
+Visitor <|-- Staff
+Visitor <|-- Admin
+rectangle "CSTBS V2" {
+  usecase "Browse events" as Browse
+  usecase "View event detail" as Detail
+  usecase "Register student account" as Register
+  usecase "Log in / out" as Auth
+  usecase "View own account" as Account
+  usecase "Create event" as Create
+  usecase "Edit event" as Edit
+  usecase "Delete event" as Delete
 }
-Visitor --> UC1
-Visitor --> UC2
-Visitor --> UC3
-Visitor --> UC4
-Visitor --> UC5
+Visitor --> Browse
+Visitor --> Detail
+Visitor --> Register
+Visitor --> Auth
+Student --> Account
+Staff --> Account
+Admin --> Account
+Admin --> Create
+Admin --> Edit
+Admin --> Delete
 @enduml
 ```
 
-## 2. Class diagram (initial schema)
-
-`Booking` belongs to a `User` and a `Seat`; the associated event is obtained through `Seat.event_id`. `Seat` is unique within an event by `(section, row_label, number)`.
+## 2. Class diagram
 
 ```plantuml
 @startuml
-hide methods
 skinparam classAttributeIconSize 0
 class User {
   +id: Integer
   +full_name: String
   +email: String [unique]
   +password_hash: String
+  +role: student|staff|admin
   +created_at: DateTime
+  +set_password(password)
+  +check_password(password): bool
+  +is_admin: bool
 }
 class Event {
   +id: Integer
@@ -63,57 +76,89 @@ class Booking {
   +status: String
   +created_at: DateTime
 }
-Event "1" -- "0..*" Seat : contains
-Seat "1" -- "0..*" Booking : referenced by
-User "1" -- "0..*" Booking : makes
+User "1" -- "0..*" Booking
+Event "1" -- "0..*" Seat
+Seat "1" -- "0..*" Booking
 @enduml
 ```
 
 ## 3. Component diagram
 
-The route/controller layer reads event records, renders Jinja2 templates, and validates prototype forms with Flask-WTF. SQLAlchemy is the persistence boundary.
-
 ```plantuml
 @startuml
 skinparam componentStyle rectangle
 actor Visitor
+actor Admin
 component "Flask Routes" as Routes
-component "Jinja2 Templates" as Templates
-component "Flask-WTF Forms" as Forms
-component "SQLAlchemy Models" as Models
-database "SQLite" as SQLite
-Visitor --> Routes : HTTP GET / POST
-Routes --> Templates : render pages
-Routes --> Forms : validate demo inputs
-Routes --> Models : query events
-Models --> SQLite : SQL
+component "Flask-Login / Auth" as Auth
+component "Flask-WTF / CSRF" as Forms
+component "Jinja2 Templates" as View
+component "SQLAlchemy Models" as ORM
+database "SQLite" as DB
+Visitor --> Routes : browse / account HTTP
+Admin --> Routes : admin event HTTP
+Routes --> Auth : sessions & role checks
+Routes --> Forms : validate inputs
+Routes --> ORM : CRUD
+Routes --> View : render pages
+ORM --> DB : SQL
 @enduml
 ```
 
-## 4. Sequence diagram — browse event details
+## 4. Sequence: user login
 
 ```plantuml
 @startuml
-actor Visitor
-participant "Browser" as Browser
-participant "Flask Routes" as Routes
-participant "SQLAlchemy" as ORM
-database "SQLite" as DB
-Visitor -> Browser : Select event card
-Browser -> Routes : GET /events/{id}
-Routes -> ORM : Fetch event by ID
-ORM -> DB : SELECT event
-DB --> ORM : Row or no result
-ORM --> Routes : Event or 404
-alt Event exists
-  Routes --> Browser : Render event_detail.html
-  Browser --> Visitor : Event information
-else Event missing
-  Routes --> Browser : 404 Not Found
+actor User
+participant Browser
+participant "Flask route" as Route
+participant "Flask-WTF" as Form
+participant "User model / Werkzeug" as Model
+participant "Flask-Login" as Login
+User -> Browser : Enter email and password
+Browser -> Route : POST /login + CSRF
+Route -> Form : validate_on_submit()
+alt invalid input / CSRF
+  Route --> Browser : Form errors / HTTP 400
+else valid input
+  Route -> Model : Find user by email, check_password()
+  alt Password valid
+    Route -> Login : login_user(user)
+    Route --> Browser : Redirect to account / safe next
+  else Invalid credentials
+    Route --> Browser : Generic login failure message
+  end
 end
 @enduml
 ```
 
-## 5. Future-facing boundary
+## 5. Sequence: administrator creates event
 
-The database includes `User`, `Seat`, and `Booking` to document the planned domain. The V1 HTTP interface intentionally **does not expose** registration persistence, authentication, seat reservation, cancellation, or checkout endpoints.
+```plantuml
+@startuml
+actor Admin
+participant Browser
+participant "Flask endpoint" as Route
+participant "Flask-Login" as Auth
+participant "EventForm" as Form
+participant "SQLAlchemy" as ORM
+Admin -> Browser : Open create event screen
+Browser -> Route : GET /admin/events/new
+Route -> Auth : @login_required + admin_required
+alt Not authenticated
+  Route --> Browser : Redirect to /login
+else Signed in, non-admin
+  Route --> Browser : 403 Forbidden
+else Admin
+  Route --> Browser : Render form
+  Browser -> Route : POST event data + CSRF
+  Route -> Form : Validate fields and CSRF
+  alt Valid
+    Route -> ORM : INSERT Event
+    Route --> Browser : Redirect to public details
+  else Invalid
+    Route --> Browser : Render field errors
+  end
+end
+@enduml
+```

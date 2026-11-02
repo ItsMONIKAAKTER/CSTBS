@@ -1,67 +1,111 @@
-# Campus Stadium Ticket Booking System (CSTBS) — Version 1
+# Campus Stadium Ticket Booking System (CSTBS) — Version 2.0
 
-A responsive **Flask + SQLite** campus stadium event-discovery prototype. V1 includes an event catalog, event detail pages, and UI-only login/registration forms, plus the initial schema for users, events, seats, and bookings.
+**Accounts and Events** is the second milestone of the Flask + SQLite campus stadium project. This version makes registration and login functional, adds `student`, `staff`, and `admin` roles, and lets administrators create, edit, and delete event listings.
 
-> **Prototype only:** No real accounts, authentication, ticket purchases, seat reservations, or payments are implemented. All event data and prices are illustrative. Do not enter real passwords into the demo forms.
+> **Scope:** No seat selection, booking, checkout, payment, or production deployment setup exists in V2. Events and prices are illustrative unless your administrators replace them. This is a local-development project.
 
 ## Technology
 
-- Python 3.10+
-- Flask / Jinja2
-- SQLAlchemy + Flask-SQLAlchemy
-- SQLite
-- Flask-WTF
-- python-dotenv
-- Plain CSS and JavaScript (no frontend framework)
+- Python 3.10+, Flask, Jinja2, SQLite
+- SQLAlchemy and Flask-SQLAlchemy
+- Flask-Login for sessions and `@login_required`
+- Flask-WTF for validation and CSRF protection
+- Werkzeug for password hashing
+- python-dotenv for local secrets
+- Vanilla CSS/JavaScript; no frontend framework
 
-## Quick start
-
-Open a terminal in the `CSTBS-v1` folder:
+## Quick start (fresh installation)
 
 ```bash
-# 1. Create and activate a virtual environment.
+# From the unpacked CSTBS-v2 directory:
 python -m venv .venv
-# macOS / Linux:
-source .venv/bin/activate
-# Windows PowerShell:
-# .venv\Scripts\Activate.ps1
-
-# 2. Install dependencies.
+source .venv/bin/activate         # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+cp .env.example .env             # Windows PowerShell: Copy-Item .env.example .env
+```
 
-# 3. Create your local environment file.
-cp .env.example .env
-# On Windows PowerShell: Copy-Item .env.example .env
+Generate a secret key:
 
-# 4. Generate a strong development secret and paste it into .env
-# to replace "replace-with-a-random-secret".
+```bash
 python -c "import secrets; print(secrets.token_hex(32))"
+```
 
-# 5. Run the local development server.
+Paste the result into `.env` as `SECRET_KEY=<random-value>`, replacing the placeholder. Do not commit `.env`.
+
+```bash
+python -m flask --app run.py seed-events
 python run.py
 ```
 
-Visit **http://127.0.0.1:5000/**. The database is created at `instance/cstbs.db` on first startup. Four demo events are added to an empty catalog. The `.env` file and generated database are intentionally excluded from Git.
+Open **http://127.0.0.1:5000**. Tables are created on first run at `instance/cstbs.db`. Running `seed-events` adds four sample events **only if the catalog is empty**. Because seeding is explicit, deleted events do not silently reappear when the server restarts.
 
-**Important:** `python run.py` enables Flask's debug mode for local development only. Do not expose this development server publicly.
+## Create your administrator account
 
-## Pages
+1. Open `/register` and register a normal account (all public registrations are `student`).
+2. Stop the development server or open a second terminal with the virtual environment activated.
+3. Promote your own account locally:
 
-| URL | V1 behavior |
-| --- | --- |
-| `/` | Hero and featured upcoming events |
-| `/events` | Complete sample event catalog |
-| `/events/<id>` | Event detail, venue, date/time, illustrative price |
-| `/login` | CSRF-protected form preview; never authenticates |
-| `/register` | CSRF-protected form preview; never creates accounts |
+```bash
+python -m flask --app run.py set-role you@campus.edu admin
+```
 
-The login/register forms validate sample input and display an informational message; submissions are **not persisted**.
+4. Sign out, sign back in, then open **http://127.0.0.1:5000/admin/events**. Only admins can create, edit, or delete events.
 
-## Project layout
+The CLI also supports `set-role you@campus.edu staff` and `set-role you@campus.edu student`. **The browser form cannot assign elevated roles.** `staff` currently has normal account/browse access; no staff-only workflow is introduced in V2.
+
+## Upgrading a V1 SQLite database
+
+**Always back up your local database before upgrading.** If you previously had `CSTBS-v1/instance/cstbs.db`, copy it into `CSTBS-v2/instance/cstbs.db` *before* starting V2. Do not copy your old `.env` into Git; you can reuse its `SECRET_KEY` locally to preserve existing session compatibility.
+
+On startup, `app/migrations.py` checks SQLite's `users` table and adds a `role` column with default `student` **only if missing**. It does not drop user or event rows or change the seat/booking schema. Existing V1 `password_hash` values, if any, are left untouched. V1's UI did not create registered accounts, so users typically register anew.
+
+**Caution:** This is a targeted V1-to-V2 SQLite compatibility step, *not* a general migration framework. `db.create_all()` cannot handle arbitrary schema changes. Do not treat this development app as a production system.
+
+## Routes and access
+
+| Method / URL | Access | Purpose |
+| --- | --- | --- |
+| `GET /` | Public | Featured upcoming events |
+| `GET /events` | Public | All events |
+| `GET /events/<id>` | Public | Event details |
+| `GET, POST /register` | Visitors | Create a `student` account |
+| `GET, POST /login` | Visitors | Authenticate via password hash |
+| `POST /logout` | Signed-in users | End session; CSRF required |
+| `GET /account` | Signed-in users | Profile and role |
+| `GET /admin/events` | Admin | Event management index |
+| `GET, POST /admin/events/new` | Admin | Create event |
+| `GET, POST /admin/events/<id>/edit` | Admin | Edit event |
+| `POST /admin/events/<id>/delete` | Admin | Delete event (requires CSRF) |
+
+Anonymous users are redirected to login from protected endpoints. Signed-in non-admins receive HTTP 403 for admin pages. Event deletion is blocked when an event has attached seats, to avoid silently removing seat/booking records.
+
+## Authentication and security notes
+
+- Passwords are hashed using Werkzeug (`generate_password_hash`, `check_password_hash`), not stored in plaintext.
+- Email addresses are normalized to lowercase, with a database uniqueness constraint.
+- Public registration always assigns the `student` role on the server.
+- Forms and state-changing POST routes require CSRF tokens.
+- Sign-out and event deletion use POST, not GET.
+- Login's `next` redirect accepts only internal absolute paths.
+- `SECRET_KEY` is required from `.env`. Never use Flask debug mode on a public server.
+- No password reset, email verification, rate limiting, HTTPS reverse proxy, audit log, or production DB migration system is included in V2. Add these before internet-facing deployment.
+
+## Automated tests
+
+Once dependencies are installed:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Tests cover public routes, registration and password hashing, duplicate emails, login/logout, protected/admin routes, CRUD, CSRF rejection, safe login redirects, seat-aware deletion, seeding, and SQLite V1 schema upgrade.
+
+## Structure
 
 ```text
-CSTBS-v1/
+CSTBS-v2/
 ├── README.md
+├── CHANGELOG.md
 ├── requirements.txt
 ├── .env.example
 ├── .gitignore
@@ -70,9 +114,11 @@ CSTBS-v1/
 ├── docs/
 │   ├── requirements.md
 │   ├── uml.md
-│   └── database-design.md
+│   ├── database-design.md
+│   └── version-2-changes.pdf
 ├── app/
 │   ├── __init__.py
+│   ├── migrations.py
 │   ├── models.py
 │   ├── routes.py
 │   ├── forms.py
@@ -88,31 +134,27 @@ CSTBS-v1/
 │       ├── events.html
 │       ├── event_detail.html
 │       ├── login.html
-│       └── register.html
+│       ├── register.html
+│       ├── account.html
+│       └── admin/
+│           ├── events.html
+│           └── event_form.html
+├── tests/
+│   └── test_app.py
 └── instance/
     └── .gitkeep
 ```
 
-## Documentation
+## GitHub release
 
-- [`docs/requirements.md`](docs/requirements.md) — scope, requirements, acceptance checklist.
-- [`docs/uml.md`](docs/uml.md) — use case, class, component, and sequence diagrams with PlantUML source.
-- [`docs/database-design.md`](docs/database-design.md) — tables, constraints, relationships, and V1 limitations.
-
-## Development notes
-
-- To regenerate demonstration data, **stop the server**, then delete `instance/cstbs.db` (this discards local data) and restart.
-- `db.create_all()` is a local-development shortcut, **not** a migration solution.
-- Event times are displayed as campus-local, without time-zone conversion in V1.
-- No database administrative or booking routes are exposed.
-
-## Create a ZIP archive
-
-From the directory *containing* `CSTBS-v1`:
+Suggested tag: **`v2.0`**. See `CHANGELOG.md` and the included `CSTBS-v2-Changes.pdf` (provided separately) for the version summary.
 
 ```bash
-# macOS / Linux (omit local .env, .venv, database, caches):
-zip -r CSTBS-v1.zip CSTBS-v1 -x '*/.env' '*/.venv/*' '*/__pycache__/*' '*/instance/*.db'
+git add .
+git commit -m "feat: add CSTBS v2.0 accounts and admin event management"
+git tag -a v2.0 -m "CSTBS v2.0 - Accounts and Events"
+git push origin main
+git push origin v2.0
 ```
 
-Or right-click the `CSTBS-v1` folder and select **Compress / Send to ZIP**. Exclude `.env`, `.venv`, and SQLite database files when sharing.
+Replace `main` if your repository uses a different default branch. Only tag the release after running the app and tests locally.

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Manage events{% endblock %}
+{% block content %}
+<section class="page-heading container">
+    <span class="section-kicker">ADMIN CONSOLE</span>
+    <div class="admin-heading">
+        <div><h1>Manage <em>events.</em></h1><p>Create, update, or remove stadium events.</p></div>
+        <a class="button button-primary" href="{{ url_for('main.admin_event_create') }}">+ Create event</a>
+    </div>
+</section>
+<section class="container admin-section">
+    <div class="admin-panel">
+        <div class="catalog-bar"><h2>Events</h2><span class="catalog-count">{{ events|length }} total</span></div>
+        {% if events %}
+        <div class="admin-list">
+            {% for event in events %}
+            <article class="admin-event-row">
+                <div class="admin-event-main">
+                    <h3><a href="{{ url_for('main.event_detail', event_id=event.id) }}">{{ event.title }}</a></h3>
+                    <p>{{ event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
+                </div>
+                <div class="admin-actions">
+                    <a class="button button-secondary button-small" href="{{ url_for('main.admin_event_edit', event_id=event.id) }}">Edit</a>
+                    <form method="post" action="{{ url_for('main.admin_event_delete', event_id=event.id) }}" data-confirm="Delete this event? This cannot be undone.">
+                        {{ delete_form.hidden_tag() }}
+                        <button type="submit" class="button button-danger button-small">Delete</button>
+                    </form>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No events exist yet. Create your first event to populate the public catalog.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

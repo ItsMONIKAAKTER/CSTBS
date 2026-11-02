@@ -16,3 +16,7 @@ venv/
 .DS_Store
 .vscode/
 .idea/
+
+# Any extra SQLite journals, private files or runtime data in instance/
+instance/*
+!instance/.gitkeep
