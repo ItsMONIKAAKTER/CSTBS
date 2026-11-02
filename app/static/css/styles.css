@@ -190,3 +190,45 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
     html { scroll-behavior: auto; }
     *, *::before, *::after { transition: none !important; }
 }
+
+/* Version 2: authenticated navigation, account and admin event management. */
+.logout-form { margin: 0; }
+.logout-button { border: 1px solid var(--border); background: var(--white); color: var(--ink); padding: 10px 15px; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
+.logout-button:hover { color: #a36523; background: var(--surface); }
+.flash-success { background: #e5f4ee; border-color: #b3ddc9; color: #235d49; }
+.flash-error { background: #feeeee; border-color: #f0c1be; color: #98362f; }
+.account-layout { padding-block: 8px 70px; }
+.account-card, .admin-panel { border-radius: var(--radius); padding: clamp(20px, 4vw, 38px); background: white; border: 1px solid var(--border); box-shadow: var(--shadow); }
+.account-card { max-width: 700px; }
+.account-card h2 { margin: 0 0 21px; }
+.account-facts { display: grid; gap: 0; margin: 0 0 30px; }
+.account-facts div { display: grid; grid-template-columns: 130px 1fr; gap: 15px; padding: 15px 0; border-bottom: 1px solid var(--border); }
+.account-facts dt { color: var(--muted); }
+.account-facts dd { margin: 0; font-weight: 750; overflow-wrap: anywhere; }
+.role-pill { display: inline-block; background: var(--mint); border-radius: 30px; padding: 3px 13px; color: #226854; font-size: .8rem; }
+.account-actions, .admin-actions, .admin-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; }
+.admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.admin-heading h1 { margin-bottom: 12px; }
+.admin-section { padding-bottom: 65px; }
+.admin-list { display: grid; }
+.admin-event-row { display: flex; gap: 20px; align-items: center; justify-content: space-between; padding: 22px 0; border-bottom: 1px solid var(--border); }
+.admin-event-row:last-child { border-bottom: 0; }
+.admin-event-main { min-width: 0; }
+.admin-event-main h3 { margin: 0 0 7px; font-size: 1.07rem; }
+.admin-event-main a:hover { text-decoration: underline; }
+.admin-event-main p { margin: 0; color: var(--muted); font-size: .86rem; }
+.admin-actions form { margin: 0; }
+.button-small { padding: 9px 15px; font-size: .8rem; }
+.button-danger { background: #fff0ef; color: #a42626; border: 1px solid #edbcba; }
+.button-danger:hover { background: #ffe2df; }
+.admin-form-section { max-width: 800px; padding-bottom: 65px; }
+.form-textarea { resize: vertical; min-height: 140px; }
+.nav-links form { flex-shrink: 0; }
+@media (max-width: 620px) {
+  .admin-heading, .admin-event-row { flex-direction: column; align-items: stretch; }
+  .admin-heading .button { align-self: flex-start; }
+  .admin-actions { margin-top: 8px; }
+  .account-facts div { grid-template-columns: 1fr; gap: 3px; }
+  .nav-links .logout-form { padding: 9px 12px; }
+  .nav-links .logout-button { width: 100%; }
+}

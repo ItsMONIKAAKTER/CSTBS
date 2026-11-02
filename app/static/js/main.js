@@ -10,3 +10,10 @@ if (toggle && links) {
         links.classList.toggle('is-open', !isOpen);
     });
 }
+
+// Ask administrators to confirm event deletion; server-side POST + CSRF remain mandatory.
+for (const form of document.querySelectorAll('form[data-confirm]')) {
+    form.addEventListener('submit', (event) => {
+        if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+    });
+}

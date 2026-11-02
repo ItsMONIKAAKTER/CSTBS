@@ -1,4 +1,4 @@
-"""Idempotent, illustrative event data for the Version 1 prototype."""
+"""Illustrative events loaded explicitly with ``flask seed-events``."""
 
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -10,9 +10,9 @@ from .models import Event
 
 
 def seed_demo_events():
-    """Insert four sample events only when the catalog is empty."""
+    """Insert four events only if the catalog is empty; return inserted count."""
     if db.session.execute(select(Event.id).limit(1)).first():
-        return
+        return 0
 
     samples = [
         (7, 18, 30, "Campus Football Night", "Football", "Main Stadium", "18.00",
@@ -27,14 +27,10 @@ def seed_demo_events():
 
     for days, hour, minute, title, category, venue, price, description in samples:
         event_date = date.today() + timedelta(days=days)
-        db.session.add(
-            Event(
-                title=title,
-                category=category,
-                venue=venue,
-                price=Decimal(price),
-                description=description,
-                starts_at=datetime.combine(event_date, time(hour=hour, minute=minute)),
-            )
-        )
+        db.session.add(Event(
+            title=title, category=category, venue=venue, price=Decimal(price),
+            description=description,
+            starts_at=datetime.combine(event_date, time(hour=hour, minute=minute)),
+        ))
     db.session.commit()
+    return len(samples)

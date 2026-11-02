@@ -1,66 +1,67 @@
-# CSTBS Version 1 — Requirements Analysis
+# CSTBS Version 2 — Requirements Analysis
 
-## 1. Purpose
+## Purpose
 
-Build a responsive, read-only web prototype for the Campus Stadium Ticket Booking System (CSTBS). The prototype demonstrates how visitors will discover campus stadium events. It **does not** sell tickets, create bookings, or authenticate users.
+Extend V1's read-only campus event catalog into a functioning **Accounts and Events** milestone. Public event browsing remains available; students can register and sign in; administrators manage event listings.
 
-## 2. Stakeholders and actors
+## Roles and permissions
 
-- **Visitor:** Browse the homepage, event catalog, and individual event details.
-- **Prospective account holder:** View and try UI-only login and registration forms.
-- **Project maintainer:** Configure the application, review the schema, and extend it in later versions.
+| Actor | Browse events | Register / log in | View account | Create/edit/delete events |
+| --- | --- | --- | --- | --- |
+| Visitor | Yes | Yes | No | No |
+| Student | Yes | Already registered | Yes | No |
+| Staff | Yes | Already registered | Yes | No |
+| Admin | Yes | Already registered | Yes | Yes |
 
-## 3. Functional requirements
+All browser registrations are assigned `student`; trusted local CLI access is required to change roles.
 
-| ID | Requirement | Acceptance criterion |
-| --- | --- | --- |
-| FR-01 | Homepage | `/` shows introductory content and up to three upcoming events. |
-| FR-02 | Event listing | `/events` lists demo events with name, date, venue, and entry price. |
-| FR-03 | Event details | `/events/<id>` shows full description, date, time, venue, category, and price; unknown IDs return 404. |
-| FR-04 | Login UI | `/login` presents a CSRF-protected Flask-WTF form and a notice that authentication is disabled. |
-| FR-05 | Registration UI | `/register` presents a CSRF-protected Flask-WTF form and a notice that no account is created. |
-| FR-06 | Navigation | Shared navbar links to Home, Events, Login, and Register. |
-| FR-07 | Seed data | An empty SQLite database is initialized with four clearly illustrative events. |
-| FR-08 | Schema | User, Event, Seat, and Booking tables are defined for future work. |
-
-## 4. Non-functional requirements
+## Functional requirements and acceptance criteria
 
 | ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
-| NFR-01 | Maintainability | Flask app factory, routes, forms, models, and templates are separated. |
-| NFR-02 | Portability | Runs on Python 3.10+ with SQLite, without a separate database server. |
-| NFR-03 | Responsiveness | Layout adapts to phones, tablets, and desktops. |
-| NFR-04 | Basic accessibility | Semantic landmarks, labels, keyboard focus, and mobile navigation controls exist. |
-| NFR-05 | Configuration security | Secret key comes from untracked `.env`; forms include CSRF tokens. |
-| NFR-06 | Git readiness | Dependencies, setup instructions, `.env.example`, and `.gitignore` are included. |
+| FR-01 | Registration | A valid registration creates a `users` row and signs in the new student. |
+| FR-02 | Password safety | Only a Werkzeug hash is stored; incorrect passwords fail. |
+| FR-03 | Login/logout | Valid credentials create a Flask-Login session, POST `/logout` ends it. |
+| FR-04 | Roles | `student`, `staff`, `admin` are stored; public role selection is impossible. |
+| FR-05 | Protected routes | `/account` and all admin routes require login. |
+| FR-06 | Admin authorization | Students/staff receive 403 on admin routes. |
+| FR-07 | Public catalog | `/events` and `/events/<id>` work without login. |
+| FR-08 | Create event | Admin can provide title, category, description, venue, date/time and non-negative price. |
+| FR-09 | Edit event | Admin can update a saved event from a pre-filled form. |
+| FR-10 | Delete event | Admin deletes via POST+CSRF; events with attached seats cannot be deleted. |
+| FR-11 | Seed data | `flask seed-events` inserts four examples if catalog is empty. |
+| FR-12 | V1 compatibility | Existing SQLite user table gains a default `student` role if needed. |
 
-## 5. Scope boundaries
+## Non-functional requirements
 
-**Included:** Read-only event catalog, UI-only account forms, SQLite schema, sample data, responsive styling, requirements/design documentation.
+- Python 3.10+, Flask, Flask-SQLAlchemy, SQLite, Flask-WTF, Flask-Login, Werkzeug, dotenv, Jinja2.
+- Secrets are read from local environment and excluded from Git.
+- CSRF checks apply to all modifying POST requests.
+- Navigation, event cards, forms, and admin pages adapt to mobile screens.
+- Clean architecture: models/forms/routes/templates/seed/migrations separated.
+- Automated Flask-client integration tests provided for core flows.
 
-**Explicitly excluded:** Real authentication, password hashing workflows, user creation, event administration, seat selection, booking logic, inventory locking, payment processing, emails, real-time availability, deployment configuration, migration tooling. Database fields for later versions are **design placeholders**, not implemented features.
+## Representative user journeys
 
-## 6. User journeys
+1. Visitor browses events, registers with name/email/password, and lands in an account page as `student`.
+2. Returning user signs in, views account, and logs out via CSRF-protected POST.
+3. Maintainer promotes an existing account to admin via local CLI; admin signs in and adds/edits/deletes events.
+4. Student/staff attempt an admin route and receive HTTP 403.
+5. Maintainer executes the sample-data seeding command only when needed.
 
-1. Visitor opens homepage, views upcoming highlights, selects **Explore events**.
-2. Visitor opens an event card and reads its details and illustrative price.
-3. Visitor clicks **Login** or **Register**, sees a clear prototype notice, and can submit sample values for validation; no credentials are checked or saved.
+## Out of scope
 
-## 7. Assumptions and constraints
+Seat inventory and bookings, payments, refunds, password reset, email verification, self-service role promotion, staff-specific workflows, real-time availability, production-rate limiting, generalized database migrations, production deployment. V1's Seat and Booking classes remain passive schema placeholders.
 
-- Event descriptions, prices, and dates are demo data, not live university announcements.
-- Event start times are naive **campus-local** times for the prototype; the campus time zone must be specified before production use.
-- `User`, `Seat`, and `Booking` tables remain empty in V1.
-- An auto-created SQLite file is intended for **local development**, not concurrent production ticket sales.
-- This version uses `db.create_all()` for a fresh schema; it does not alter an existing schema after model changes.
+## Manual acceptance checklist
 
-## 8. Version 1 acceptance checklist
-
-- [ ] Install dependencies in a virtual environment.
-- [ ] Set a non-placeholder `SECRET_KEY` in `.env`.
-- [ ] Start `python run.py` and open `/`.
-- [ ] Browse `/events` and open an event detail page.
-- [ ] Confirm an unknown event ID returns 404.
-- [ ] Open `/login` and `/register`, inspect errors, and confirm no account is created.
-- [ ] Confirm `instance/cstbs.db` contains the four schema tables.
-- [ ] Inspect layouts on mobile and desktop widths.
+- [ ] Install dependencies and create a strong local `.env` secret.
+- [ ] Seed demo events and confirm public event pages work while signed out.
+- [ ] Register a student, inspect hashed DB password, sign out and sign back in.
+- [ ] Confirm duplicate email and wrong password are rejected.
+- [ ] Confirm anonymous users redirect to login for protected pages.
+- [ ] Confirm student/staff get 403 for admin pages.
+- [ ] Promote a test user via CLI, create/edit/delete an event in the UI.
+- [ ] Confirm logout and deletion without CSRF return HTTP 400.
+- [ ] Verify small-screen responsiveness and browser keyboard navigation.
+- [ ] Execute `python -m unittest discover -s tests -v`.

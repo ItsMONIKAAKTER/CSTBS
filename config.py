@@ -1,4 +1,4 @@
-"""Application configuration, with secrets supplied by the environment."""
+"""Configuration for CSTBS; sensitive settings come from the environment."""
 
 import os
 from pathlib import Path
@@ -10,9 +10,12 @@ load_dotenv(BASE_DIR / ".env")
 
 
 class Config:
-    """Default settings for the Version 1 local prototype."""
+    """Development defaults; override settings through create_app if testing."""
 
     SECRET_KEY = os.getenv("SECRET_KEY")
-    # Flask-SQLAlchemy resolves relative SQLite paths under app.instance_path.
-    SQLALCHEMY_DATABASE_URI = "sqlite:///cstbs.db"
+    # Relative SQLite paths are resolved inside the Flask instance directory.
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///cstbs.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    # Set SESSION_COOKIE_SECURE=True when deploying behind HTTPS.
