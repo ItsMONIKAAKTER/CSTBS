@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Manage users{% endblock %}
+{% block content %}
+<section class="page-heading container admin-page-title">
+  <span class="section-kicker">ADMIN / ACCOUNTS</span><h1>User <em>roles.</em></h1>
+  <p>Assign student, staff or admin access to registered users. Your own role cannot be changed here.</p>
+</section>
+<section class="container admin-section">
+  {% include 'admin/_nav.html' %}
+  <div class="admin-panel">
+    <div class="admin-panel-head"><h2>Registered accounts</h2><span class="catalog-count">{{ users|length }} users</span></div>
+    {% if users %}<div class="table-scroll"><table class="admin-table">
+      <thead><tr><th>User</th><th>Member since</th><th>Role</th><th>Change access</th></tr></thead>
+      <tbody>{% for user in users %}<tr>
+        <td><strong>{{ user.full_name }}</strong><small>{{ user.email }}</small></td>
+        <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
+        <td><span class="role-pill">{{ user.role|capitalize }}</span></td>
+        <td>{% if user.id == current_user.id %}<span class="muted">Current account (locked)</span>{% else %}
+          <form class="role-edit" method="post" action="{{ url_for('admin.change_role', user_id=user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="sr-only" for="role-{{ user.id }}">Role for {{ user.email }}</label>
+            <select class="form-control" id="role-{{ user.id }}" name="role">
+              {% for value in ['student', 'staff', 'admin'] %}<option value="{{ value }}" {% if user.role == value %}selected{% endif %}>{{ value|capitalize }}</option>{% endfor %}
+            </select><button class="button button-secondary button-small" type="submit">Save</button>
+          </form>{% endif %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>{% else %}<p class="empty-state">No accounts have registered yet.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

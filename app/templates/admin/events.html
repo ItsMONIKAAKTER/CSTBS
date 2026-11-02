@@ -9,6 +9,7 @@
     </div>
 </section>
 <section class="container admin-section">
+    {% include "admin/_nav.html" %}
     <div class="admin-panel">
         <div class="catalog-bar"><h2>Events</h2><span class="catalog-count">{{ events|length }} total</span></div>
         {% if events %}
@@ -21,6 +22,7 @@
                 </div>
                 <div class="admin-actions">
                     <a class="button button-secondary button-small" href="{{ url_for('main.admin_event_edit', event_id=event.id) }}">Edit</a>
+                    <a class="button button-secondary button-small" href="{{ url_for('admin.seats', event_id=event.id) }}">Seats</a>
                     <form method="post" action="{{ url_for('main.admin_event_delete', event_id=event.id) }}" data-confirm="Delete this event? This cannot be undone.">
                         {{ delete_form.hidden_tag() }}
                         <button type="submit" class="button button-danger button-small">Delete</button>

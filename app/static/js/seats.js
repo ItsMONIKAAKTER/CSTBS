@@ -57,14 +57,17 @@
       if (!response.ok) throw new Error('Availability service returned an error.');
       const data = await response.json();
       const unavailable = new Set(data.reserved_seat_ids.map(String));
+      const blocked = new Set((data.blocked_seat_ids || []).map(String));
       let selectionChanged = false;
       for (const button of buttons) {
         const id = button.dataset.seatId;
         const taken = unavailable.has(id);
+        const isBlocked = blocked.has(id);
         button.classList.toggle('is-taken', taken);
-        button.disabled = taken || !data.booking_open;
+        button.classList.toggle('is-blocked', isBlocked);
+        button.disabled = taken || isBlocked || !data.booking_open;
         button.setAttribute('aria-label',
-          `Seat ${button.dataset.label}, ${taken ? 'reserved' : data.booking_open ? 'available' : 'closed'}`);
+          `Seat ${button.dataset.label}, ${taken ? 'reserved' : isBlocked ? 'blocked' : data.booking_open ? 'available' : 'closed'}`);
         if (button.disabled && selected.delete(id)) selectionChanged = true;
       }
       summary.textContent = `${data.available} of ${data.total} seats available`;

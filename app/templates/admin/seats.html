@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Seat management — {{ event.title }}{% endblock %}
+{% block content %}
+<section class="page-heading container admin-page-title">
+  <a href="{{ url_for('main.admin_events') }}" class="back-link">← Back to events</a>
+  <span class="section-kicker">ADMIN / INVENTORY</span><h1>Manage <em>seating.</em></h1>
+  <p>{{ event.title }} · Block seats and organize sections. Active reservations are protected.</p>
+</section>
+<section class="container admin-section">
+  {% include 'admin/_nav.html' %}
+  <div class="admin-panel admin-split">
+    <div>
+      <h2>Add section</h2><p class="admin-help">Add a new, independently labelled section to this event (max 600 seats).</p>
+      <form method="post" action="{{ url_for('admin.create_section', event_id=event.id) }}" class="admin-stack-form">
+        {{ create_form.hidden_tag() }}
+        <div class="form-field">{{ create_form.name.label }}{{ create_form.name(class='form-control', placeholder='West Stand') }}</div>
+        <div class="admin-two-cols">
+          <div class="form-field">{{ create_form.rows.label }}{{ create_form.rows(class='form-control', min='1', max='20', value='4') }}</div>
+          <div class="form-field">{{ create_form.seats_per_row.label }}{{ create_form.seats_per_row(class='form-control', min='1', max='30', value='10') }}</div>
+        </div>
+        <button class="button button-primary" type="submit">+ Add section</button>
+      </form>
+    </div>
+    <div class="admin-instructions"><h2>Seat controls</h2>
+      <p>Blocking a seat removes it from availability immediately. Reserved seats must be cancelled before blocking. Unblocking restores an unreserved seat to the catalog.</p>
+      <p>Section deletion is allowed only when none of its seats has <strong>any booking history</strong>. Renaming preserves seat IDs and reservations.</p>
+    </div>
+  </div>
+  {% if sections %}
+    {% for section, section_seats in sections.items() %}
+    <article class="admin-panel admin-section-card">
+      <div class="admin-panel-head"><div><h2>{{ section }}</h2>
+        <p>{{ section_seats|length }} seats · {{ section_seats|selectattr('is_blocked')|list|length }} blocked</p></div>
+        <form method="post" action="{{ url_for('admin.delete_section', event_id=event.id, section=section) }}" data-confirm="Delete this section and all unbooked seats?">
+          <input name="csrf_token" type="hidden" value="{{ csrf_token() }}">
+          <button class="button button-danger button-small" type="submit">Delete section</button>
+        </form></div>
+      <form method="post" action="{{ url_for('admin.rename_section', event_id=event.id) }}" class="section-rename-form">
+        {{ rename_form.hidden_tag() }}<input type="hidden" name="old_name" value="{{ section }}">
+        <label for="section-{{ loop.index }}">Rename section</label>
+        <input class="form-control" id="section-{{ loop.index }}" name="new_name" maxlength="30" required value="{{ section }}">
+        <button type="submit" class="button button-secondary button-small">Rename</button>
+      </form>
+      <div class="admin-seat-list">
+      {% for seat in section_seats %}
+        <form method="post" action="{{ url_for('admin.toggle_block', seat_id=seat.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="admin-seat {{ 'blocked' if seat.is_blocked else 'reserved' if seat.id in active else 'available' }}"
+                  {% if seat.id in active and not seat.is_blocked %}disabled title="Cancel booking to block"{% endif %}
+                  aria-label="{{ seat.display_label }}: {{ 'blocked, click to unblock' if seat.is_blocked else 'reserved, cannot block' if seat.id in active else 'available, click to block' }}">
+            <strong>{{ seat.label }}</strong><small>{{ 'Blocked' if seat.is_blocked else 'Reserved' if seat.id in active else 'Open' }}</small>
+          </button>
+        </form>
+      {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
+  {% else %}<div class="empty-state">No seats for this event. Add a section above.</div>{% endif %}
+</section>
+{% endblock %}

@@ -61,3 +61,45 @@ def upgrade_v2_booking_constraints():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_seat "
             "ON bookings (seat_id) WHERE status = 'reserved'"
         )
+
+
+def upgrade_v3_seat_blocking():
+    """Add non-destructive block state to existing V3 SQLite seat rows."""
+    if db.engine.dialect.name != "sqlite":
+        return
+    if not inspect(db.engine).has_table("seats"):
+        return
+    names = {col["name"] for col in inspect(db.engine).get_columns("seats")}
+    if "is_blocked" not in names:
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE seats ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT 0"
+            )
+    # Keep booking and blocking consistent even if an admin action races with a
+    # confirmation POST. SQLite evaluates these triggers inside write transactions.
+    with db.engine.begin() as connection:
+        connection.exec_driver_sql("""
+            CREATE TRIGGER IF NOT EXISTS prevent_booking_blocked_seat_insert
+            BEFORE INSERT ON bookings
+            WHEN NEW.status = 'reserved' AND EXISTS (
+                SELECT 1 FROM seats WHERE id = NEW.seat_id AND is_blocked = 1
+            )
+            BEGIN SELECT RAISE(ABORT, 'seat is blocked'); END
+        """)
+        connection.exec_driver_sql("""
+            CREATE TRIGGER IF NOT EXISTS prevent_booking_blocked_seat_update
+            BEFORE UPDATE OF status, seat_id ON bookings
+            WHEN NEW.status = 'reserved' AND EXISTS (
+                SELECT 1 FROM seats WHERE id = NEW.seat_id AND is_blocked = 1
+            )
+            BEGIN SELECT RAISE(ABORT, 'seat is blocked'); END
+        """)
+        connection.exec_driver_sql("""
+            CREATE TRIGGER IF NOT EXISTS prevent_blocking_reserved_seat
+            BEFORE UPDATE OF is_blocked ON seats
+            WHEN NEW.is_blocked = 1 AND EXISTS (
+                SELECT 1 FROM bookings
+                WHERE seat_id = NEW.id AND status = 'reserved'
+            )
+            BEGIN SELECT RAISE(ABORT, 'reserved seat cannot be blocked'); END
+        """)

@@ -2,6 +2,26 @@
 
 All notable CSTBS changes are recorded in this file.
 
+## [4.0.0] — 2026-11-01 — Administration
+
+### Added
+- Role-protected admin dashboard with user/event/active-booking/blocked-seat totals and recent reservation activity.
+- Admin seating panel with block/unblock actions, section creation/renaming/deletion, and reserved-seat/booking-history safety guards.
+- Administrator role editor for student/staff/admin access, denying self-demotion and removal of the final admin.
+- Filterable, paginated all-user booking management and admin cancellation without deleting historical records.
+- Booking confirmation and cancellation email notifications built with Flask-Mail; development console preview and optional Ethereal SMTP settings.
+- SQLite seat-blocking column migration and triggers enforcing blocked-seat versus active-booking invariants during concurrent writes.
+- Admin blueprint, notification service, authorization helper and V4 admin integration tests.
+- Updated admin UI, sectioned public seat map, requirements, UML, database guide, README, email-development instructions and release notes.
+
+### Changed
+- Availability JSON includes `blocked_seat_ids`; available count excludes both blocked and reserved seats.
+- Reservation checkout refuses blocked seats in review and confirmation; notification delivery follows DB commit and does not roll back reservations on mail failure.
+- Main navigation leads administrators to the new dashboard; V2 event CRUD paths and V3 reservation paths are preserved.
+
+### Not included
+- Payments, tickets or refunds; real-time socket pushes; background mail delivery/retries; production data migrations, audit trails or distributed locking.
+
 ## [3.0.0] — 2026-11-01 — Seat Reservations
 
 ### Added
