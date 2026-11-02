@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#11233a">
+    <meta name="description" content="Browse upcoming events at the campus stadium.">
+    <title>{% block title %}CSTBS{% endblock %} | Campus Stadium</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+</head>
+<body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header class="site-header">
+        <nav class="container nav" aria-label="Primary navigation">
+            <a class="brand" href="{{ url_for('main.index') }}" aria-label="CSTBS home">
+                <span class="brand-mark" aria-hidden="true">C</span>
+                <span class="brand-name">CSTBS<small>Campus Stadium</small></span>
+            </a>
+            <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu <span aria-hidden="true">☰</span></button>
+            <div class="nav-links" id="nav-links">
+                <a href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}aria-current="page"{% endif %}>Home</a>
+                <a href="{{ url_for('main.events') }}" {% if request.endpoint in ['main.events', 'main.event_detail'] %}aria-current="page"{% endif %}>Events</a>
+                <a href="{{ url_for('main.login') }}" {% if request.endpoint == 'main.login' %}aria-current="page"{% endif %}>Login</a>
+                <a class="nav-register" href="{{ url_for('main.register') }}" {% if request.endpoint == 'main.register' %}aria-current="page"{% endif %}>Register <span aria-hidden="true">↗</span></a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="container flash-wrap"><p class="flash flash-{{ category }}" role="status">{{ message }}</p></div>
+            {% endfor %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <div><strong>CSTBS</strong><p>Campus Stadium Ticket Booking System</p></div>
+            <span>Version 1 prototype · No live bookings or accounts</span>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<section class="auth-section">
+    <div class="auth-card">
+        <span class="section-kicker">WELCOME BACK</span>
+        <h1>Sign in to CSTBS</h1>
+        <p class="auth-subtitle">Preview the future campus account experience.</p>
+        <div class="demo-notice" role="note"><strong>UI preview only.</strong> Sign-in is not functional. Do not enter a real password.</div>
+        <form method="post" novalidate>
+            {{ form.hidden_tag() }}
+            {% if form.csrf_token.errors %}<p class="field-error" role="alert">Form security check failed. Refresh and try again.</p>{% endif %}
+            <div class="form-field">
+                {{ form.email.label }}
+                {{ form.email(class='form-control', placeholder='you@campus.edu', autocomplete='email', inputmode='email') }}
+                {% for error in form.email.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="form-field">
+                {{ form.password.label }}
+                {{ form.password(class='form-control', placeholder='Your password', autocomplete='current-password') }}
+                {% for error in form.password.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+            </div>
+            {{ form.submit(class='button button-primary button-full') }}
+        </form>
+        <p class="auth-switch">New to CSTBS? <a href="{{ url_for('main.register') }}">Preview registration</a></p>
+    </div>
+</section>
+{% endblock %}

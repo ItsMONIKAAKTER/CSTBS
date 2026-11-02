@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<div class="container detail-page">
+    <a class="back-link" href="{{ url_for('main.events') }}"><span aria-hidden="true">←</span> Back to events</a>
+    <div class="detail-grid">
+        <article class="detail-content">
+            <div class="detail-cover art-{{ event.category|lower }}">
+                <span class="category-pill">{{ event.category }}</span>
+                <span class="detail-cover-word" aria-hidden="true">CAMPUS<br>LIVE</span>
+            </div>
+            <span class="section-kicker detail-kicker">EVENT DETAILS</span>
+            <h1>{{ event.title }}</h1>
+            <p class="detail-description">{{ event.description }}</p>
+            <h2>About this event</h2>
+            <p>Join the campus community at {{ event.venue }}. Event information shown here is sample content for the CSTBS Version 1 prototype.</p>
+        </article>
+        <aside class="detail-sidebar" aria-label="Event information">
+            <div class="detail-ticket">
+                <span class="ticket-eyebrow">ENTRY PRICE</span>
+                <div class="ticket-price">{% if event.price == 0 %}Free{% else %}${{ '%.2f'|format(event.price) }}{% endif %}</div>
+                <div class="ticket-divider"></div>
+                <dl class="ticket-facts">
+                    <div><dt>Date</dt><dd>{{ event.starts_at.strftime('%A, %B %d, %Y') }}</dd></div>
+                    <div><dt>Time</dt><dd>{{ event.starts_at.strftime('%I:%M %p').lstrip('0') }} <small>(campus local)</small></dd></div>
+                    <div><dt>Venue</dt><dd>{{ event.venue }}</dd></div>
+                    <div><dt>Category</dt><dd>{{ event.category }}</dd></div>
+                </dl>
+                <button class="button button-disabled" type="button" disabled>Booking available in a later version</button>
+                <p class="ticket-note">This prototype does not accept reservations or payments.</p>
+            </div>
+        </aside>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% from '_event_card.html' import event_card %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="hero">
+    <div class="container hero-grid">
+        <div class="hero-copy">
+            <span class="eyebrow"><span class="eyebrow-dot"></span> YOUR CAMPUS. YOUR MOMENTS.</span>
+            <h1>Where campus <em>comes alive.</em></h1>
+            <p>From match-day energy to unforgettable nights, discover what is happening at your campus stadium.</p>
+            <div class="hero-actions">
+                <a class="button button-primary" href="{{ url_for('main.events') }}">Explore events <span aria-hidden="true">↗</span></a>
+                <a class="button button-ghost" href="#featured">See what's coming <span aria-hidden="true">↓</span></a>
+            </div>
+            <div class="hero-footnote"><span aria-hidden="true">✦</span> A Version 1 preview — browsing only, no ticket purchases yet.</div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+            <img src="{{ url_for('static', filename='images/stadium.svg') }}" alt="">
+            <div class="hero-art-note"><span class="note-icon">★</span><span>More than a game<br><strong>It's our community.</strong></span></div>
+        </div>
+    </div>
+</section>
+
+<section class="section" id="featured">
+    <div class="container">
+        <div class="section-heading">
+            <div><span class="section-kicker">WHAT'S NEXT</span><h2>Upcoming highlights</h2><p>Find your next reason to cheer, sing, and show up.</p></div>
+            <a class="text-link" href="{{ url_for('main.events') }}">View all events <span aria-hidden="true">↗</span></a>
+        </div>
+        {% if featured_events %}
+            <div class="card-grid">{% for event in featured_events %}{{ event_card(event) }}{% endfor %}</div>
+        {% else %}
+            <p class="empty-state">No upcoming events are available right now. Check the full catalog for details.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="section section-muted">
+    <div class="container info-banner">
+        <div class="info-icon" aria-hidden="true">✦</div>
+        <div><h2>Built for campus life.</h2><p>Find event dates, venues, and entry prices in one simple place. Booking and account features are planned for a later version.</p></div>
+        <a class="button button-secondary" href="{{ url_for('main.events') }}">Browse events</a>
+    </div>
+</section>
+{% endblock %}

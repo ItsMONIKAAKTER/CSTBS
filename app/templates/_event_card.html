@@ -1,0 +1,18 @@
+{% macro event_card(event) %}
+<article class="event-card">
+    <a class="event-card-link" href="{{ url_for('main.event_detail', event_id=event.id) }}" aria-label="View {{ event.title }} details">
+        <div class="event-card-art art-{{ event.category|lower }}">
+            <span class="category-pill">{{ event.category }}</span>
+            <span class="art-caption" aria-hidden="true">CAMPUS<br>LIVE</span>
+        </div>
+        <div class="event-card-body">
+            <div class="event-date"><strong>{{ event.starts_at.strftime('%d') }}</strong><span>{{ event.starts_at.strftime('%b %Y') }}</span></div>
+            <div class="event-card-info">
+                <h3>{{ event.title }}</h3>
+                <p>{{ event.venue }} · {{ event.starts_at.strftime('%I:%M %p').lstrip('0') }}</p>
+                <div class="card-bottom"><span>{% if event.price == 0 %}Free entry{% else %}${{ '%.2f'|format(event.price) }}{% endif %}</span><span class="card-arrow" aria-hidden="true">↗</span></div>
+            </div>
+        </div>
+    </a>
+</article>
+{% endmacro %}

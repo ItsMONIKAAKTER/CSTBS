@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% from '_event_card.html' import event_card %}
+{% block title %}Events{% endblock %}
+{% block content %}
+<section class="page-heading container">
+    <span class="section-kicker">THE EVENT LINEUP</span>
+    <h1>Find your next <em>great moment.</em></h1>
+    <p>Explore the current demo catalog of campus stadium events.</p>
+</section>
+<section class="section section-tight">
+    <div class="container">
+        <div class="catalog-bar"><h2>All events</h2><span class="catalog-count">{{ events|length }} event{% if events|length != 1 %}s{% endif %}</span></div>
+        {% if events %}
+            <div class="card-grid">{% for event in events %}{{ event_card(event) }}{% endfor %}</div>
+        {% else %}
+            <p class="empty-state">No events to display yet. Please check back later.</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
