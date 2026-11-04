@@ -1,38 +1,71 @@
 {% extends 'base.html' %}
-{% block title %}Admin dashboard{% endblock %}
+{% block title %}Stadium operations{% endblock %}
 {% block content %}
-<section class="page-heading container admin-page-title">
-  <span class="section-kicker">CSTBS / ADMINISTRATION</span>
-  <h1>Stadium <em>overview.</em></h1>
-  <p>Manage event inventory, accounts and reservations from one place.</p>
+<section class="page-heading container admin-page-title animated-enter">
+  <span class="section-kicker">AUTHORIZED ADMINISTRATION · STADIUM OPERATIONS</span>
+  <div class="admin-heading"><div><h1>Stadium <em>control center.</em></h1>
+    <p>Open entrances, monitor attendance, and manage event operations from one screen.</p></div>
+    <a class="button button-primary" href="{{ url_for('entry.scan') }}">Open QR scanner</a>
+  </div>
 </section>
 <section class="container admin-section">
   {% include 'admin/_nav.html' %}
-  <div class="admin-metrics">
-    <a class="metric-card" href="{{ url_for('admin.users') }}"><span>Registered users</span><strong>{{ metrics.users }}</strong><small>Manage access →</small></a>
-    <a class="metric-card" href="{{ url_for('main.admin_events') }}"><span>Published events</span><strong>{{ metrics.events }}</strong><small>View all events →</small></a>
-    <a class="metric-card" href="{{ url_for('admin.bookings', status='reserved') }}"><span>Active reservations</span><strong>{{ metrics.active_bookings }}</strong><small>Manage bookings →</small></a>
-    <div class="metric-card"><span>Blocked seats</span><strong>{{ metrics.blocked_seats }}</strong><small>Manage from event seating</small></div>
+  <div class="admin-metrics ops-metrics">
+    <a class="metric-card" href="{{ url_for('admin.users') }}"><span>Registered students</span><strong>{{ metrics.students }}</strong><small>Manage university accounts</small></a>
+    <a class="metric-card" href="{{ url_for('main.admin_events') }}"><span>Stadium events</span><strong>{{ metrics.events }}</strong><small>Manage events &amp; sections</small></a>
+    <a class="metric-card" href="{{ url_for('admin.bookings') }}"><span>Active admission passes</span><strong>{{ metrics.active_tickets }}</strong><small>View bookings &amp; tickets</small></a>
+    <a class="metric-card" href="{{ url_for('entry.checkin_dashboard') }}"><span>Students checked in</span><strong>{{ metrics.inside }}</strong><small>Check attendance status</small></a>
   </div>
-  <div class="admin-panel">
-    <div class="admin-panel-head"><div><h2>Recent reservations</h2><p>Latest activity across the stadium.</p></div>
-      <a class="text-link" href="{{ url_for('admin.bookings') }}">All bookings</a></div>
-    {% if recent %}
-      <div class="table-scroll"><table class="admin-table">
-        <thead><tr><th>Booking</th><th>Event / seat</th><th>User</th><th>Status</th></tr></thead>
-        <tbody>{% for booking in recent %}<tr>
-          <td>#{{ booking.id }}</td><td><strong>{{ booking.event.title }}</strong><small>{{ booking.seat.display_label }}</small></td>
-          <td>{{ booking.user.email }}</td><td><span class="history-state {{ 'is-active' if booking.status == 'reserved' else 'is-cancelled' }}">{{ booking.status|capitalize }}</span></td>
-        </tr>{% endfor %}</tbody>
-      </table></div>
-    {% else %}<p class="empty-state">No reservations have been made yet.</p>{% endif %}
+  <div class="admin-panel ops-control-panel">
+    <div class="admin-panel-head"><div><span class="section-kicker">LIVE CONTROL</span>
+      <h2>Event entry and gate controls</h2><p>Use <strong>Open entry</strong> to open the event's entrances together. Closing entry stops all check-ins immediately.</p></div>
+      <a class="button button-secondary button-small" href="{{ url_for('main.admin_event_create') }}">+ Add event</a>
+    </div>
+    {% if operations %}
+    <div class="ops-event-list">
+      {% for info in operations %}
+      <article class="ops-event-card">
+        <div class="ops-event-info">
+          <div class="ops-event-top"><h3>{{ info.event.title }}</h3>
+            <span class="ops-state {{ 'state-open' if info.event.checkin_enabled and info.gates|selectattr('is_open')|list else 'state-closed' }}">
+              {{ 'ENTRY OPEN' if info.event.checkin_enabled and info.gates|selectattr('is_open')|list else 'ENTRY CLOSED' }}
+            </span></div>
+          <p>{{ info.event.starts_at.strftime('%d %b %Y · %I:%M %p') }} · {{ info.event.venue }}</p>
+          <div class="ops-inline-stats">
+            <span><strong>{{ info.checked }}</strong> entered</span>
+            <span><strong>{{ info.reserved }}</strong> reserved</span>
+            <span><strong>{{ info.available }}</strong> available</span>
+            <span><strong>{{ info.gates|selectattr('is_open')|list|length }}/{{ info.gates|length }}</strong> gates open</span>
+          </div>
+          <div class="ops-capacity" aria-label="{{ info.checked }} of {{ info.reserved }} reserved attendees checked in"><span style="width: {{ (100 * info.checked / info.reserved)|round|int if info.reserved else 0 }}%"></span></div>
+        </div>
+        <div class="ops-actions">
+          {% if info.event.checkin_enabled %}
+          <form method="post" action="{{ url_for('admin.set_event_entry', event_id=info.event.id, action='close') }}" data-confirm="Close ALL entrances for this event?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('admin.dashboard') }}">
+            <button type="submit" class="button button-danger button-small">Close entry</button>
+          </form>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.set_event_entry', event_id=info.event.id, action='open') }}" data-confirm="Open entry at all gates for this event?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="return_to" value="{{ url_for('admin.dashboard') }}">
+            <button type="submit" class="button button-primary button-small">Open entry</button>
+          </form>
+          {% endif %}
+          <a class="button button-secondary button-small" href="{{ url_for('admin.gates', event_id=info.event.id) }}">Manage gates</a>
+          <a class="button button-secondary button-small" href="{{ url_for('admin.seats', event_id=info.event.id) }}">Manage seats</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+      <div class="empty-state">No stadium events yet. Create an event to initialize sections and entrances.</div>
+    {% endif %}
   </div>
-  <div class="quick-actions">
-    <a class="button button-secondary" href="{{ url_for('main.admin_event_create') }}">+ Create event</a>
-    <a class="button button-secondary" href="{{ url_for('admin.users') }}">Manage roles</a>
-    <a class="button button-secondary" href="{{ url_for('admin.bookings') }}">Review reservations</a>
-    <a class="button button-primary" href="{{ url_for('reports.index') }}">Export reports</a>
+  <div class="quick-actions ops-shortcuts">
     <a class="button button-secondary" href="{{ url_for('entry.scan') }}">Scan QR tickets</a>
+    <a class="button button-secondary" href="{{ url_for('admin.bookings') }}">Manage tickets</a>
+    <a class="button button-secondary" href="{{ url_for('admin.users') }}">Students &amp; staff</a>
+    <a class="button button-primary" href="{{ url_for('reports.index') }}">Reports &amp; exports</a>
   </div>
 </section>
 {% endblock %}

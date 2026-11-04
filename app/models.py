@@ -85,6 +85,25 @@ class Event(db.Model):
     checkin_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
     seats = db.relationship("Seat", back_populates="event", order_by="(Seat.row_label, Seat.number)")
+    gates = db.relationship(
+        "Gate", back_populates="event", order_by="Gate.name",
+        cascade="all, delete-orphan",
+    )
+
+
+class Gate(db.Model):
+    """Event-scoped stadium entrance managed by authorized administrators."""
+
+    __tablename__ = "gates"
+    __table_args__ = (UniqueConstraint("event_id", "name", name="uq_gate_event_name"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False, index=True)
+    name = db.Column(db.String(40), nullable=False)
+    is_open = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+
+    event = db.relationship("Event", back_populates="gates")
+    seats = db.relationship("Seat", back_populates="gate")
 
 
 class Seat(db.Model):
@@ -100,10 +119,12 @@ class Seat(db.Model):
     event_id = db.Column(db.Integer, db.ForeignKey("events.id"), nullable=False, index=True)
     section = db.Column(db.String(30), nullable=False)
     is_blocked = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    gate_id = db.Column(db.Integer, db.ForeignKey("gates.id"), nullable=True, index=True)
     row_label = db.Column(db.String(10), nullable=False)
     number = db.Column(db.Integer, nullable=False)
 
     event = db.relationship("Event", back_populates="seats")
+    gate = db.relationship("Gate", back_populates="seats")
     bookings = db.relationship("Booking", back_populates="seat", order_by="Booking.created_at.desc()")
 
     @property
@@ -176,11 +197,13 @@ class Ticket(db.Model):
     status = db.Column(db.String(20), nullable=False, default="active")
     checked_in_at = db.Column(db.DateTime)
     checked_in_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    checked_in_gate_id = db.Column(db.Integer, db.ForeignKey("gates.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
 
     booking = db.relationship("Booking", back_populates="ticket")
     attendee = db.relationship("User", foreign_keys=[attendee_user_id])
     checked_in_by = db.relationship("User", foreign_keys=[checked_in_by_id])
+    checked_in_gate = db.relationship("Gate", foreign_keys=[checked_in_gate_id])
     event = db.relationship("Event")
 
     @property

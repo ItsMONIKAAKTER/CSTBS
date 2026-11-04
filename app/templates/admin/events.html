@@ -23,6 +23,7 @@
                 <div class="admin-actions">
                     <a class="button button-secondary button-small" href="{{ url_for('main.admin_event_edit', event_id=event.id) }}">Edit</a>
                     <a class="button button-secondary button-small" href="{{ url_for('admin.seats', event_id=event.id) }}">Seats</a>
+                    <a class="button button-secondary button-small" href="{{ url_for('admin.gates', event_id=event.id) }}">Manage gates</a>
                     <form method="post" action="{{ url_for('admin.toggle_event_gate', event_id=event.id, gate='booking') }}">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <button class="button button-secondary button-small" type="submit">Booking {{ 'ON' if event.booking_enabled else 'OFF' }}</button></form>

@@ -16,7 +16,7 @@ from sqlalchemy.orm import joinedload
 from . import db, limiter
 from .authz import admin_required
 from .forms import CreateSectionForm, RenameSectionForm, RoleForm, AdminInviteForm, StudentIDForm
-from .models import Booking, Event, Seat, Ticket, User
+from .models import Booking, Event, Gate, Seat, Ticket, User
 from .notifications import notify_booking_cancelled
 from .admin_keys import issue_login_key
 import secrets
@@ -32,20 +32,36 @@ def _admin_route(view):
 @admin.get("/")
 @_admin_route
 def dashboard():
-    """Show high-level totals and latest reservations."""
+    """Live stadium operations with event-scoped capacity and entry state."""
+    from datetime import datetime, timedelta
     metrics = {
-        "users": db.session.scalar(select(func.count(User.id))),
+        "students": db.session.scalar(select(func.count(User.id)).where(User.role == "student")),
         "events": db.session.scalar(select(func.count(Event.id))),
-        "active_bookings": db.session.scalar(select(func.count(Booking.id)).where(Booking.status == "reserved")),
+        "active_tickets": db.session.scalar(select(func.count(Ticket.id)).where(
+            Ticket.status.in_(["active", "checked_in"]))),
+        "inside": db.session.scalar(select(func.count(Ticket.id)).where(Ticket.status == "checked_in")),
         "blocked_seats": db.session.scalar(select(func.count(Seat.id)).where(Seat.is_blocked.is_(True))),
     }
-    recent = db.session.scalars(
-        select(Booking)
-        .options(joinedload(Booking.user), joinedload(Booking.seat).joinedload(Seat.event))
-        .order_by(Booking.created_at.desc(), Booking.id.desc())
-        .limit(8)
-    ).all()
-    return render_template("admin/dashboard.html", metrics=metrics, recent=recent)
+    events = db.session.scalars(select(Event).where(
+        Event.starts_at >= datetime.now() - timedelta(days=3)
+    ).order_by(Event.starts_at).limit(12)).all()
+    if not events:
+        events = db.session.scalars(select(Event).order_by(Event.starts_at.desc()).limit(6)).all()
+    operations = []
+    for event in events:
+        capacity = db.session.scalar(select(func.count(Seat.id)).where(Seat.event_id == event.id))
+        reserved = db.session.scalar(select(func.count(Booking.id)).join(Seat).where(
+            Seat.event_id == event.id, Booking.status == "reserved"))
+        checked = db.session.scalar(select(func.count(Ticket.id)).where(
+            Ticket.event_id == event.id, Ticket.status == "checked_in"))
+        blocked = db.session.scalar(select(func.count(Seat.id)).where(
+            Seat.event_id == event.id, Seat.is_blocked.is_(True)))
+        gates = db.session.scalars(select(Gate).where(Gate.event_id == event.id)
+                                   .order_by(Gate.name)).all()
+        operations.append(dict(event=event, capacity=capacity, reserved=reserved,
+                               checked=checked, blocked=blocked, gates=gates,
+                               available=max(capacity - reserved - blocked, 0)))
+    return render_template("admin/dashboard.html", metrics=metrics, operations=operations)
 
 
 @admin.get("/events/<int:event_id>/seats")
@@ -65,8 +81,10 @@ def seats(event_id):
     sections = defaultdict(list)
     for seat in inventory:
         sections[seat.section].append(seat)
+    gates = db.session.scalars(select(Gate).where(Gate.event_id == event.id)
+                              .order_by(Gate.name)).all()
     return render_template("admin/seats.html", event=event, sections=sections,
-                           active=active, create_form=CreateSectionForm(),
+                           active=active, gates=gates, create_form=CreateSectionForm(),
                            rename_form=RenameSectionForm())
 
 
@@ -109,9 +127,15 @@ def create_section(event_id):
     if exists is not None:
         flash("A section with this name already exists.", "error")
         return redirect(url_for("admin.seats", event_id=event.id))
+    gate = db.session.scalar(select(Gate).where(Gate.event_id == event.id)
+                             .order_by(Gate.id).limit(1))
+    if gate is None:
+        gate = Gate(event_id=event.id, name="Gate 1")
+        db.session.add(gate)
+        db.session.flush()
     for row_index in range(form.rows.data):
         for number in range(1, form.seats_per_row.data + 1):
-            db.session.add(Seat(event_id=event.id, section=name,
+            db.session.add(Seat(event_id=event.id, gate_id=gate.id, section=name,
                                 row_label=chr(65 + row_index), number=number))
     db.session.commit()
     flash(f"Added section {name} with {form.rows.data * form.seats_per_row.data} seats.", "success")
@@ -307,18 +331,137 @@ def cancel_booking(booking_id):
     return redirect(url_for("admin.bookings"))
 
 
+def _set_event_entry(event, is_open):
+    """Open/close the event and ALL entrances in a single database commit."""
+    event.checkin_enabled = is_open
+    for gate in db.session.scalars(select(Gate).where(Gate.event_id == event.id)).all():
+        gate.is_open = is_open
+    db.session.commit()
+
+
+@admin.post("/events/<int:event_id>/entry/<action>")
+@_admin_route
+def set_event_entry(event_id, action):
+    if action not in ("open", "close"):
+        abort(404)
+    event = db.get_or_404(Event, event_id)
+    _set_event_entry(event, action == "open")
+    flash(f"Stadium entry {'OPEN' if action == 'open' else 'CLOSED'} for {event.title}.", "success")
+    return redirect(request.form.get("return_to") if request.form.get("return_to") in
+                    (url_for("admin.dashboard"), url_for("main.admin_events"),
+                     url_for("admin.gates", event_id=event.id)) else
+                    url_for("admin.gates", event_id=event.id))
+
+
 @admin.post("/events/<int:event_id>/toggle/<gate>")
 @_admin_route
 def toggle_event_gate(event_id, gate):
-    """Admins explicitly control when reservations and stadium entry are open."""
+    """Compatibility for older event list form; now updates all entrances."""
     if gate not in ("booking", "checkin"):
         abort(404)
     event = db.get_or_404(Event, event_id)
-    field = "booking_enabled" if gate == "booking" else "checkin_enabled"
-    setattr(event, field, not getattr(event, field))
-    db.session.commit()
-    flash(f"{gate.title()} {'opened' if getattr(event, field) else 'closed'} for {event.title}.", "success")
+    if gate == "checkin":
+        _set_event_entry(event, not event.checkin_enabled)
+    else:
+        event.booking_enabled = not event.booking_enabled
+        db.session.commit()
+    flash(f"{gate.title()} state updated for {event.title}.", "success")
     return redirect(url_for("main.admin_events"))
+
+
+@admin.get("/events/<int:event_id>/gates")
+@_admin_route
+def gates(event_id):
+    event = db.get_or_404(Event, event_id)
+    entrances = db.session.scalars(select(Gate).where(Gate.event_id == event.id)
+                                   .order_by(Gate.name)).all()
+    inventory = db.session.scalars(select(Seat).where(Seat.event_id == event.id)
+                                   .order_by(Seat.section, Seat.row_label, Seat.number)).all()
+    sections = defaultdict(list)
+    for seat in inventory:
+        sections[seat.section].append(seat)
+    return render_template("admin/gates.html", event=event, gates=entrances, sections=sections)
+
+
+@admin.post("/events/<int:event_id>/gates")
+@_admin_route
+def add_gate(event_id):
+    event = db.get_or_404(Event, event_id)
+    name = " ".join(request.form.get("name", "").strip().split())
+    if not 2 <= len(name) <= 40 or not all(c.isalnum() or c in " -_" for c in name):
+        flash("Use a gate name of 2–40 letters/numbers.", "error")
+    else:
+        db.session.add(Gate(event_id=event.id, name=name, is_open=False))
+        try:
+            db.session.commit()
+            flash(f"Added {name}. Assign a section before using this gate.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("This gate name already exists for this event.", "error")
+    return redirect(url_for("admin.gates", event_id=event.id))
+
+
+@admin.post("/events/<int:event_id>/gates/<int:gate_id>/rename")
+@_admin_route
+def rename_gate(event_id, gate_id):
+    gate = db.get_or_404(Gate, gate_id)
+    if gate.event_id != event_id:
+        abort(404)
+    name = " ".join(request.form.get("name", "").strip().split())
+    if not 2 <= len(name) <= 40 or not all(c.isalnum() or c in " -_" for c in name):
+        flash("Enter a valid gate name.", "error")
+    else:
+        gate.name = name
+        try:
+            db.session.commit()
+            flash("Gate renamed.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("That gate name already exists.", "error")
+    return redirect(url_for("admin.gates", event_id=event_id))
+
+
+@admin.post("/gates/<int:gate_id>/toggle")
+@_admin_route
+def toggle_gate(gate_id):
+    gate = db.get_or_404(Gate, gate_id)
+    gate.is_open = not gate.is_open
+    if gate.is_open:
+        gate.event.checkin_enabled = True
+    else:
+        remaining = db.session.scalar(select(Gate.id).where(
+            Gate.event_id == gate.event_id, Gate.id != gate.id,
+            Gate.is_open.is_(True)).limit(1))
+        if remaining is None:
+            gate.event.checkin_enabled = False
+    db.session.commit()
+    flash(f"{gate.name} is now {'OPEN' if gate.is_open else 'CLOSED'}.", "success")
+    return redirect(url_for("admin.gates", event_id=gate.event_id))
+
+
+@admin.post("/events/<int:event_id>/sections/<section>/gate")
+@_admin_route
+def assign_section_gate(event_id, section):
+    event = db.get_or_404(Event, event_id)
+    gate_id = request.form.get("gate_id", type=int)
+    gate = db.session.get(Gate, gate_id) if gate_id else None
+    if gate is None or gate.event_id != event.id:
+        abort(400)
+    seats = db.session.scalars(select(Seat).where(
+        Seat.event_id == event.id, Seat.section == section)).all()
+    if not seats:
+        abort(404)
+    # Prevent moving already-admitted students to another gate mid-event.
+    checked = db.session.scalar(select(Ticket.id).join(Booking).where(
+        Booking.seat_id.in_([seat.id for seat in seats]), Ticket.status == "checked_in").limit(1))
+    if checked is not None:
+        flash("Cannot reassign a section containing checked-in tickets.", "error")
+    else:
+        for seat in seats:
+            seat.gate_id = gate.id
+        db.session.commit()
+        flash(f"{section} now enters through {gate.name}.", "success")
+    return redirect(url_for("admin.gates", event_id=event.id))
 
 
 @admin.post("/tickets/<int:ticket_id>/assign")

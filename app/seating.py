@@ -1,9 +1,9 @@
-"""Default seat inventory and availability helpers for Version 3."""
+"""Default seat inventory and availability helpers."""
 
 from sqlalchemy import select
 
 from . import db
-from .models import Booking, Event, Seat
+from .models import Booking, Event, Seat, Gate
 
 ROWS = "ABCDEF"
 SEATS_PER_ROW = 10
@@ -12,9 +12,10 @@ MAX_SEATS_PER_BOOKING = 6
 
 def add_default_seats(event):
     """Assign 60 general-admission labelled seats to a newly created event."""
+    gate = event.gates[0] if event.gates else Gate(event=event, name="Gate 1")
     for row in ROWS:
         for number in range(1, SEATS_PER_ROW + 1):
-            db.session.add(Seat(event=event, section="Main", row_label=row, number=number))
+            db.session.add(Seat(event=event, gate=gate, section="Main", row_label=row, number=number))
 
 
 def backfill_empty_event_seats():

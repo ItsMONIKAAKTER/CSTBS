@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 
 from flask import current_app
 from sqlalchemy import inspect
@@ -11,8 +12,8 @@ from . import db
 def sqlite_backup(*, version_guard=False):
     """Back up an existing on-disk SQLite DB without copying a live WAL file.
 
-    On a V5.2->V5.3 upgrade, version_guard skips backup if migration already
-    occurred, so repeated application starts never create redundant backups.
+    version_guard creates a snapshot before a legacy V5.1/V5.2/V5.3 schema
+    changes, and skips a backup after the V5.4 gate schema is installed.
     Backup files stay below ignored instance/backups; operator stores them safely.
     """
     if db.engine.dialect.name != "sqlite":
@@ -27,15 +28,19 @@ def sqlite_backup(*, version_guard=False):
         inspector = inspect(db.engine)
         if not inspector.has_table("users"):
             return None
-        if "password_ready" in {c["name"] for c in inspector.get_columns("users")}:
+        # The V5.4 gate assignment is the current upgrade marker.
+        # A V5.3 database already has password_ready but still needs backup.
+        if inspector.has_table("seats") and "gate_id" in {
+            c["name"] for c in inspector.get_columns("seats")
+        }:
             return None
     backup_dir = Path(current_app.instance_path) / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
     dest = backup_dir / f"cstbs-preupgrade-{stamp}.sqlite3"
     # SQLite backup API gives a consistent snapshot even if WAL is enabled.
-    with sqlite3.connect(str(path)) as source:
-        with sqlite3.connect(str(dest)) as backup:
+    with closing(sqlite3.connect(str(path))) as source:
+        with closing(sqlite3.connect(str(dest))) as backup:
             source.backup(backup)
             result = backup.execute("PRAGMA integrity_check").fetchone()
             if result is None or result[0] != "ok":

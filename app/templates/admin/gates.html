@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Manage stadium entrances{% endblock %}
+{% block content %}
+<section class="page-heading container admin-page-title"><a class="back-link" href="{{ url_for('admin.dashboard') }}">← Stadium control center</a>
+<span class="section-kicker">ADMIN · ENTRANCES</span><h1>Manage <em>gates.</em></h1>
+<p>{{ event.title }} · Assign stadium sections to named entrances and control gate access.</p></section>
+<section class="container admin-section">{% include 'admin/_nav.html' %}
+  <div class="admin-panel ops-control-panel">
+    <div class="admin-panel-head"><div><h2>Event admission</h2>
+      <p>{{ 'Admission is open' if event.checkin_enabled else 'Admission is closed' }} · {{ event.venue }}</p></div>
+      <span class="ops-state {{ 'state-open' if event.checkin_enabled else 'state-closed' }}">{{ 'OPEN' if event.checkin_enabled else 'CLOSED' }}</span>
+    </div>
+    <div class="quick-actions">
+      <form method="post" action="{{ url_for('admin.set_event_entry', event_id=event.id, action='open') }}" data-confirm="Open all entrances for this event?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-primary" type="submit">Open all gates</button>
+      </form>
+      <form method="post" action="{{ url_for('admin.set_event_entry', event_id=event.id, action='close') }}" data-confirm="Close all gates for this event?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="button button-danger" type="submit">Close all gates</button>
+      </form>
+      <a class="button button-secondary" href="{{ url_for('entry.scan') }}">Scan ticket</a>
+    </div>
+  </div>
+  <div class="admin-panel">
+    <h2>Entrance status</h2>
+    <p>Each gate can be opened or closed individually. A valid ticket is admitted only at its assigned, open gate.</p>
+    {% for gate in gates %}
+      <div class="ops-gate-row">
+        <div><strong>{{ gate.name }}</strong><p class="muted">{{ gate.seats|length }} seats assigned</p></div>
+        <span class="ops-state {{ 'state-open' if gate.is_open and event.checkin_enabled else 'state-closed' }}">{{ 'OPEN' if gate.is_open and event.checkin_enabled else 'CLOSED' }}</span>
+        <form method="post" action="{{ url_for('admin.toggle_gate', gate_id=gate.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="button button-secondary button-small">{{ 'Close gate' if gate.is_open else 'Open gate' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.rename_gate', event_id=event.id, gate_id=gate.id) }}" class="ops-rename-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label for="gate-name-{{ gate.id }}">Gate name</label>
+          <input class="form-control" id="gate-name-{{ gate.id }}" name="name" maxlength="40" required value="{{ gate.name }}">
+          <button type="submit" class="button button-secondary button-small">Rename</button>
+        </form>
+      </div>
+    {% endfor %}
+    <form class="admin-stack-form add-gate-form" method="post" action="{{ url_for('admin.add_gate', event_id=event.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="new-gate-name">Add another entrance</label>
+      <input class="form-control" id="new-gate-name" name="name" minlength="2" maxlength="40" placeholder="Gate 2" required>
+      <button class="button button-primary" type="submit">+ Add gate</button>
+    </form>
+  </div>
+  <div class="admin-panel">
+    <h2>Assign a gate to each section</h2>
+    <p>A ticket's gate is taken from its seat section. Existing seat numbers and reservations remain unchanged when a section is reassigned.</p>
+    {% for section, section_seats in sections.items() %}
+    <form method="post" class="ops-section-row" action="{{ url_for('admin.assign_section_gate', event_id=event.id, section=section) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div><strong>{{ section }}</strong><small>{{ section_seats|length }} seats</small></div>
+      <label for="section-gate-{{ loop.index }}">Entrance gate</label>
+      <select class="form-control" id="section-gate-{{ loop.index }}" name="gate_id" required>
+      {% for gate in gates %}<option value="{{ gate.id }}" {% if section_seats[0].gate_id == gate.id %}selected{% endif %}>{{ gate.name }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="button button-secondary button-small">Save assignment</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

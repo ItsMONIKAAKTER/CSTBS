@@ -1,61 +1,85 @@
-// Stadium gate QR camera scanner. BarcodeDetector is optional; the normal
-// camera app/manual form remain available without any external CDN.
+/* Gate camera scanner: native QR detector when supported + cross-browser QR
+   photograph upload fallback. QR contains a signed token, not a website URL. */
 (() => {
   const video = document.getElementById('gate-video');
   if (!video) return;
+  const status = document.getElementById('scanner-status');
   const start = document.getElementById('start-scanner');
   const stop = document.getElementById('stop-scanner');
-  const status = document.getElementById('scanner-status');
+  const gateSelect = document.getElementById('gate-selector');
+  const hiddenGates = document.querySelectorAll('.scanner-gate-id');
   let stream = null;
-  let timeoutId = null;
-  let scanning = false;
+  let timer = null;
+  let active = false;
+  let detector = null;
+  const setStatus = (message) => { status.textContent = message; };
   const shutdown = () => {
-    scanning = false;
-    if (timeoutId) window.clearTimeout(timeoutId);
+    active = false;
+    if (timer) clearTimeout(timer);
+    timer = null;
     if (stream) stream.getTracks().forEach(track => track.stop());
-    video.srcObject = null;
     stream = null;
-    status.textContent = 'Camera stopped.';
+    video.srcObject = null;
   };
-  stop?.addEventListener('click', shutdown);
-  window.addEventListener('pagehide', shutdown, { once: true });
+  gateSelect?.addEventListener('change', () => {
+    for (const input of hiddenGates) input.value = gateSelect.value;
+    if (active) shutdown();
+    setStatus(gateSelect.value ? 'Gate selected. Ready to scan.' : 'Select a gate before scanning.');
+  });
+  stop?.addEventListener('click', () => { shutdown(); setStatus('Camera stopped.'); });
+  window.addEventListener('pagehide', shutdown);
+  for (const form of [document.getElementById('manual-code-form'), document.getElementById('qr-photo-form')]) {
+    form?.addEventListener('submit', (event) => {
+      if (!gateSelect.value) {
+        event.preventDefault();
+        setStatus('Select the gate where you are working first.');
+        gateSelect.focus();
+      }
+    });
+  }
   start?.addEventListener('click', async () => {
-    if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
-      status.textContent = 'Direct scanning is unavailable in this browser. Use your camera app or paste the QR link.';
+    if (!gateSelect.value) {
+      setStatus('Select your entrance above before starting the camera.');
+      gateSelect.focus(); return;
+    }
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setStatus('Live camera requires HTTPS or localhost. Use the QR photograph form on this page instead.');
       return;
     }
+    if (!('BarcodeDetector' in window)) {
+      setStatus('Your browser lacks live QR detection. Use the QR photograph button; it works on mobile and desktop.');
+      return;
+    }
+    shutdown();
     try {
-      shutdown();
-      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'environment' } });
+      detector = new BarcodeDetector({ formats: ['qr_code'] });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } });
       video.srcObject = stream;
       await video.play();
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-      scanning = true;
-      status.textContent = 'Point the camera at the official CSTBS QR ticket.';
+      active = true;
+      setStatus('Camera running. Hold the ticket QR inside the preview.');
       const scanFrame = async () => {
-        if (!scanning) return;
+        if (!active) return;
         try {
           const codes = await detector.detect(video);
-          const code = codes.find(item => item.rawValue);
-          if (code) {
-            const raw = code.rawValue;
-            const target = new URL(raw, window.location.origin);
-            if (target.origin !== window.location.origin ||
-                !target.pathname.startsWith('/entry/verify/') || target.search || target.hash) {
-              status.textContent = 'That QR does not belong to this CSTBS server.';
-            } else {
-              shutdown();
-              window.location.assign(target.href); // GET verification only; POST must authorize entry.
-              return;
-            }
+          const raw = codes.find(value => value.rawValue)?.rawValue;
+          if (raw) {
+            shutdown();
+            // Same-origin navigation to a GET verifier, which NEVER grants entry.
+            const url = new URL('/entry/scan', window.location.origin);
+            url.searchParams.set('gate_id', gateSelect.value);
+            url.searchParams.set('code', raw);
+            window.location.assign(url.href);
+            return;
           }
-        } catch (_) { status.textContent = 'Unable to read QR; try again or paste its link.'; }
-        timeoutId = window.setTimeout(scanFrame, 280);
+        } catch (_) { setStatus('Could not read QR yet. Adjust lighting or use a photo.'); }
+        timer = setTimeout(scanFrame, 300);
       };
       scanFrame();
-    } catch (_) {
+    } catch (error) {
       shutdown();
-      status.textContent = 'Camera unavailable or permission denied. Try HTTPS / localhost, or enter the QR URL manually.';
+      const permission = error?.name === 'NotAllowedError' ? 'Camera permission was denied.' : 'Camera unavailable.';
+      setStatus(permission + ' Enable permissions or use the photo form below.');
     }
   });
 })();

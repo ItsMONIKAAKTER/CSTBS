@@ -1,20 +1,33 @@
 {% extends 'base.html' %}
-{% block title %}Digital stadium ticket{% endblock %}
+{% block title %}Ticket CSTBS-{{ '%06d'|format(ticket.id) }}{% endblock %}
 {% block content %}
-<section class="page-heading container animated-enter"><span class="section-kicker">YOUR DIGITAL ACCESS PASS</span>
-<h1>You're on the <em>list.</em></h1><p>Show this QR ticket to authorized stadium staff. One entry per attendee.</p></section>
+<section class="page-heading container animated-enter"><span class="section-kicker">YOUR CAMPUS ACCESS PASS</span>
+<h1>My <em>stadium ticket.</em></h1><p>Show this pass at your assigned entrance. One valid ticket per student for each event.</p></section>
 <section class="container ticket-display-wrap"><article class="digital-ticket glass-panel">
-  <div class="ticket-event-head"><span class="section-kicker">CSTBS · UNIVERSITY STADIUM</span><span class="history-state {{ 'is-active' if ticket.status == 'active' else 'is-cancelled' }}">{{ ticket.status|replace('_', ' ')|capitalize }}</span></div>
+  <div class="ticket-event-head"><span class="section-kicker">CSTBS · UNIVERSITY STADIUM</span>
+    <span class="history-state {{ 'is-active' if ticket.status == 'active' else 'is-cancelled' }}">{{ ticket.status|replace('_', ' ')|capitalize }}</span></div>
   <h2>{{ ticket.event.title }}</h2>
-  <p class="muted">{{ ticket.event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ ticket.event.venue }}</p>
-  <div class="digital-ticket-grid"><div><span>Ticket holder</span><strong>{{ ticket.attendee_name }}</strong></div>
-    <div><span>Student ID</span><strong>{{ ticket.attendee_student_id or 'Unassigned' }}</strong></div>
-    <div><span>Seat</span><strong>{{ ticket.seat.display_label }}</strong></div><div><span>Admission</span><strong>FREE</strong></div></div>
+  <p class="muted">Ticket ID: <strong>CSTBS-{{ '%06d'|format(ticket.id) }}</strong></p>
+  <div class="digital-ticket-grid ticket-facts-grid">
+    <div><span>Event date</span><strong>{{ ticket.event.starts_at.strftime('%A, %d %B %Y') }}</strong></div>
+    <div><span>Event time · campus local</span><strong>{{ ticket.event.starts_at.strftime('%I:%M %p') }}</strong></div>
+    <div><span>Stadium / venue</span><strong>{{ ticket.event.venue }}</strong></div>
+    <div><span>Entrance gate</span><strong>{{ ticket.seat.gate.name if ticket.seat.gate else 'Ask stadium staff' }}</strong></div>
+    <div><span>Section</span><strong>{{ ticket.seat.section }}</strong></div>
+    <div><span>Row / seat</span><strong>{{ ticket.seat.row_label }} / {{ ticket.seat.number }}</strong></div>
+    <div><span>Ticket holder</span><strong>{{ ticket.attendee_name }}</strong></div>
+    <div><span>Student ID</span><strong>{{ ticket.attendee_student_id or 'Awaiting verification' }}</strong></div>
+    <div><span>Admission</span><strong>Free (¥0.00)</strong></div>
+    <div><span>Entry status</span><strong>{{ 'Already checked in' if ticket.status == 'checked_in' else 'Valid ticket' if ticket.status == 'active' else 'Not valid for entry' }}</strong></div>
+  </div>
   {% if ticket.status == 'active' %}
-    <div class="qr-shell"><img alt="Secure QR pass for ticket {{ ticket.id }}" src="{{ url_for('entry.ticket_qr', ticket_id=ticket.id) }}" width="250" height="250"><p>Present this QR at the stadium gate</p></div>
+    <div class="qr-shell"><img alt="Signed QR pass for ticket CSTBS-{{ '%06d'|format(ticket.id) }}" src="{{ url_for('entry.ticket_qr', ticket_id=ticket.id) }}" width="270" height="270" loading="eager">
+      <p><strong>Show to stadium staff at {{ ticket.seat.gate.name if ticket.seat.gate else 'the assigned entrance' }}</strong></p>
+      <p class="muted">Staff scan this QR using the CSTBS scanner or its QR-photo option. A valid QR alone does not guarantee the gate is open.</p>
+    </div>
   {% elif ticket.status == 'checked_in' %}
-    <p class="flash flash-success">This ticket was checked in at {{ ticket.checked_in_at.strftime('%Y-%m-%d %H:%M') }} UTC.</p>
-  {% else %}<p class="flash flash-error">Ticket is not valid for entry.</p>{% endif %}
-  <small class="muted">Ticket #{{ ticket.id }} · No payment required · Do not publicly share this QR.</small>
+    <p class="flash flash-success">Admission already used: {{ ticket.checked_in_at.strftime('%d %b %Y %I:%M %p') if ticket.checked_in_at else 'previously checked in' }}.</p>
+  {% else %}<p class="flash flash-error">This ticket cannot be used for entry. Contact the stadium administrator.</p>{% endif %}
+  <p class="ticket-instructions">Bring your university ID. Do not share your QR. Arrive at the gate designated above and follow campus entry instructions.</p>
 </article></section>
 {% endblock %}

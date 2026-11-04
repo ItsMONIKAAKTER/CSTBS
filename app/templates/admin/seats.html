@@ -26,6 +26,7 @@
       <p>Section deletion is allowed only when none of its seats has <strong>any booking history</strong>. Renaming preserves seat IDs and reservations.</p>
     </div>
   </div>
+  <div class="quick-actions"><a class="button button-primary" href="{{ url_for('admin.gates', event_id=event.id) }}">Manage entrance gates and section assignments</a></div>
   {% if sections %}
     {% for section, section_seats in sections.items() %}
     <article class="admin-panel admin-section-card">

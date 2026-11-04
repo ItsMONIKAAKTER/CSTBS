@@ -1,19 +1,50 @@
 {% extends 'base.html' %}
-{% block title %}Stadium QR scanner{% endblock %}
+{% block title %}QR gate scanner{% endblock %}
 {% block content %}
-<section class="page-heading container animated-enter"><span class="section-kicker">STADIUM GATE / STAFF</span>
-<h1>Scan a <em>ticket.</em></h1><p>Use your phone camera over HTTPS or localhost, or paste the QR link below. Scanning never grants entry automatically.</p></section>
-<section class="container gate-grid"><article class="admin-panel glass-panel">
-<h2>Camera scanner</h2><video class="scanner-video" id="gate-video" playsinline muted aria-label="Camera preview for QR scanning"></video>
-<p id="scanner-status" class="muted" role="status">Camera is off.</p>
-<div class="confirm-actions"><button type="button" class="button button-primary" id="start-scanner">Start camera</button>
-<button type="button" class="button button-secondary" id="stop-scanner">Stop camera</button></div>
-<p class="muted">If your browser does not support direct QR scanning, open the ticket QR with the phone's camera app and sign in as staff to verify it.</p>
-</article><article class="admin-panel glass-panel"><h2>Manual verification</h2>
-<form method="get" action="{{ url_for('entry.scan') }}">
-<label for="scanned-code">Paste ticket URL or code</label>
-<input class="form-control" id="scanned-code" name="code" maxlength="1000" required placeholder="https://.../entry/verify/...">
-<button class="button button-primary button-full" type="submit">Verify ticket</button></form>
-<p class="muted">After verification, confirm entry separately. A second scan of the same ticket will be rejected.</p></article></section>
+<section class="page-heading container animated-enter"><span class="section-kicker">STAFF ACCESS · ENTRY CONTROL</span>
+<h1>Scan a <em>stadium ticket.</em></h1>
+<p>Choose your assigned entrance, then scan or photograph the student's QR. Entry is only recorded after you verify their university ID and press Confirm.</p></section>
+<section class="container gate-grid" data-scanner-page>
+  <article class="admin-panel glass-panel">
+    <h2>1. Select your entrance</h2>
+    <label for="gate-selector">Gate where you are working</label>
+    <select class="form-control" id="gate-selector" required>
+      <option value="">Choose event and gate</option>
+      {% for gate in gates %}
+      <option value="{{ gate.id }}" {% if selected_gate and selected_gate.id == gate.id %}selected{% endif %}>
+        {{ gate.event.title }} — {{ gate.name }} ({{ 'OPEN' if gate.is_open and gate.event.checkin_enabled else 'CLOSED' }})
+      </option>
+      {% endfor %}
+    </select>
+    <p class="admin-help">The gate assignment must match the ticket. A valid QR at a closed or incorrect gate will show an explanation, not a fraud warning.</p>
+    <h2>2. Live camera scanner</h2>
+    <video class="scanner-video" id="gate-video" playsinline muted aria-label="Camera preview for QR scanning"></video>
+    <p id="scanner-status" role="status" class="muted" aria-live="polite">Choose a gate, then start the camera. HTTPS or localhost is required for live video.</p>
+    <div class="confirm-actions">
+      <button type="button" class="button button-primary" id="start-scanner">Start camera</button>
+      <button type="button" class="button button-secondary" id="stop-scanner">Stop camera</button>
+    </div>
+  </article>
+  <article class="admin-panel glass-panel">
+    <h2>Camera not working?</h2>
+    <p>Use your phone's camera to take a picture of the QR, or select a saved photo. This works even when live browser scanning is unsupported.</p>
+    <form method="post" action="{{ url_for('entry.scan_photo') }}" enctype="multipart/form-data" id="qr-photo-form" class="admin-stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="gate_id" class="scanner-gate-id" value="{{ selected_gate.id if selected_gate else '' }}">
+      <label for="qr-photo">QR photograph (JPEG, PNG or WebP; up to 3 MB)</label>
+      <input class="form-control" id="qr-photo" type="file" name="qr_photo" accept="image/*" capture="environment" required>
+      <button class="button button-primary button-full" type="submit">Read QR photograph</button>
+    </form>
+    <hr class="soft-divider">
+    <h2>Manual ticket code</h2>
+    <form method="get" action="{{ url_for('entry.scan') }}" class="admin-stack-form" id="manual-code-form">
+      <input type="hidden" name="gate_id" class="scanner-gate-id" value="{{ selected_gate.id if selected_gate else '' }}">
+      <label for="scanned-code">Paste the signed code from a digital ticket</label>
+      <textarea class="form-control" id="scanned-code" name="code" maxlength="1000" rows="3" required placeholder="Paste CSTBS ticket code here"></textarea>
+      <button class="button button-secondary button-full" type="submit">Verify code</button>
+    </form>
+    <p class="muted">Live video requires browser permission and a secure context. Photo capture is the recommended fallback on local campus Wi-Fi without HTTPS.</p>
+  </article>
+</section>
 <script src="{{ url_for('static', filename='js/scanner.js') }}" defer></script>
 {% endblock %}

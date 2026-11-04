@@ -58,7 +58,7 @@ def event_detail(event_id):
 def register():
     """Create a student account and start an authenticated session."""
     if current_user.is_authenticated:
-        return redirect(url_for("main.account"))
+        return redirect(url_for("main.student_dashboard" if current_user.role == "student" else "main.account"))
     form = RegisterForm()
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
@@ -80,7 +80,7 @@ def register():
             else:
                 login_user(user)
                 flash("Account created. Welcome to CSTBS!", "success")
-                return redirect(url_for("main.account"))
+                return redirect(url_for("main.student_dashboard"))
     return render_template("register.html", form=form)
 
 
@@ -169,18 +169,20 @@ def update_student_id():
 def login():
     """Verify a stored password hash and authenticate the account."""
     if current_user.is_authenticated:
-        return redirect(url_for("main.account"))
+        return redirect(url_for("main.student_dashboard" if current_user.role == "student" else
+                                   "admin.dashboard" if current_user.is_admin else "entry.scan"))
     form = LoginForm()
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
         user = db.session.scalar(select(User).where(User.email == email))
         if user and user.role == "admin":
-            flash("Administrators sign in with a one-time key at Admin Login.", "info")
+            flash("Administrators sign in with their password on the Admin Login page.", "info")
             return redirect(url_for("main.admin_login"))
         if user and user.check_password(form.password.data):
             login_user(user)
             flash("Signed in successfully.", "success")
-            return redirect(safe_next_url(request.args.get("next")) or url_for("main.account"))
+            destination = "main.student_dashboard" if user.role == "student" else "entry.scan"
+            return redirect(safe_next_url(request.args.get("next")) or url_for(destination))
         flash("Invalid email or password.", "error")
     return render_template("login.html", form=form)
 
@@ -193,6 +195,23 @@ def logout():
     logout_user()
     flash("You have signed out.", "info")
     return redirect(url_for("main.index"))
+
+
+@main.get("/dashboard")
+@login_required
+def student_dashboard():
+    """Student-only control panel showing tickets assigned to this Student ID."""
+    if current_user.role == "admin":
+        return redirect(url_for("admin.dashboard"))
+    if current_user.role == "staff":
+        return redirect(url_for("entry.scan"))
+    tickets = db.session.scalars(select(Ticket).where(
+        Ticket.attendee_user_id == current_user.id,
+        Ticket.status.in_(["active", "checked_in"])
+    ).order_by(Ticket.created_at.desc(), Ticket.id.desc()).limit(20)).all()
+    events = db.session.scalars(select(Event).where(
+        Event.starts_at >= datetime.now()).order_by(Event.starts_at).limit(3)).all()
+    return render_template("student/dashboard.html", tickets=tickets, events=events)
 
 
 @main.get("/account")
@@ -263,8 +282,14 @@ def admin_event_delete(event_id):
     if any_booking is not None:
         flash("This event has booking history and cannot be deleted.", "error")
     else:
+        # Delete event-owned inventory before the event itself. Gate.event_id
+        # is NOT NULL, so leaving a Gate attached would make SQLAlchemy try to
+        # orphan it with UPDATE gates SET event_id = NULL and fail the commit.
+        # Existing reservations above still prevent any destructive deletion.
         for seat in list(event.seats):
             db.session.delete(seat)
+        for gate in list(event.gates):
+            db.session.delete(gate)
         db.session.delete(event)
         db.session.commit()
         flash("Event deleted successfully.", "success")
@@ -319,6 +344,12 @@ def seat_map(event_id):
     if not current_user.student_id:
         flash("Add your Student ID before reserving a ticket.", "error")
         return redirect(url_for("main.account"))
+    existing_ticket = db.session.scalar(select(Ticket.id).where(
+        Ticket.event_id == event.id, Ticket.attendee_user_id == current_user.id,
+        Ticket.status.in_(["active", "checked_in"])).limit(1))
+    if existing_ticket is not None:
+        flash("You already hold a ticket for this event. A second ticket is not allowed.", "info")
+        return redirect(url_for("main.student_dashboard"))
     seats = db.session.scalars(
         select(Seat).where(Seat.event_id == event.id)
         .order_by(Seat.row_label, Seat.number)
@@ -357,6 +388,11 @@ def booking_review(event_id):
     if current_user.role != "student" or not current_user.student_id:
         abort(403)
     session.pop("pending_booking", None)
+    if db.session.scalar(select(Ticket.id).where(
+        Ticket.event_id == event.id, Ticket.attendee_user_id == current_user.id,
+        Ticket.status.in_(["active", "checked_in"])).limit(1)) is not None:
+        flash("Only one ticket per student per event is allowed.", "error")
+        return redirect(url_for("main.student_dashboard"))
     if not _future_event(event):
         return redirect(url_for("main.seat_map", event_id=event.id))
     seats, error = _requested_seats(event, request.form.get("seat_ids"))

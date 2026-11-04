@@ -18,7 +18,7 @@ for (const form of document.querySelectorAll('form[data-confirm]')) {
     });
 }
 
-// V5.3: Accessible light/dark themes, persisted only in the visitor's browser.
+// Accessible light/dark themes, persisted only in the visitor's browser.
 (() => {
   const button = document.querySelector('.theme-toggle');
   const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;

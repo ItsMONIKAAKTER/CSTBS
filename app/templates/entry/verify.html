@@ -1,22 +1,47 @@
 {% extends 'base.html' %}
-{% block title %}Verify stadium entry{% endblock %}
+{% block title %}Verify stadium ticket{% endblock %}
 {% block content %}
-<section class="page-heading container animated-enter"><span class="section-kicker">STADIUM GATE / VERIFICATION</span>
-<h1>Entry <em>verification.</em></h1><p>Always match the ticket holder's Student ID with university ID at the gate.</p></section>
-<section class="container ticket-display-wrap"><article class="admin-panel glass-panel">
-{% if ticket %}
-  <div class="gate-verdict {{ 'gate-valid' if ticket.status == 'active' and ticket.booking.status == 'reserved' and ticket.event.checkin_enabled else 'gate-invalid' }}">
-  {% if ticket.status == 'checked_in' %}ALREADY USED{% elif ticket.status == 'cancelled' or ticket.booking.status == 'cancelled' %}CANCELLED{% elif ticket.status == 'unassigned' %}UNASSIGNED{% elif not ticket.event.checkin_enabled %}GATE CLOSED{% else %}VALID TICKET{% endif %}</div>
-  <h2>{{ ticket.event.title }}</h2>
-  <div class="digital-ticket-grid"><div><span>Attendee</span><strong>{{ ticket.attendee_name }}</strong></div>
-   <div><span>Student ID</span><strong>{{ ticket.attendee_student_id }}</strong></div><div><span>Seat</span><strong>{{ ticket.seat.display_label }}</strong></div>
-   <div><span>Ticket</span><strong>#{{ ticket.id }}</strong></div></div>
-  {% if ticket.status == 'active' and ticket.booking.status == 'reserved' and ticket.event.checkin_enabled %}
-   <form method="post" action="{{ url_for('entry.check_in', token=token) }}">
-   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-   <button class="button button-primary button-full" type="submit" data-confirm="Confirm identity and admit this attendee?">Confirm stadium entry</button></form>
-  {% else %}<p class="flash flash-error">Entry is not permitted. Do not admit this attendee.</p>{% endif %}
-{% else %}<div class="gate-verdict gate-invalid">INVALID QR CODE</div><p>Unknown, altered or expired ticket details.</p>{% endif %}
-<a class="button button-secondary" href="{{ url_for('entry.scan') }}">Scan next ticket</a>
+<section class="page-heading container animated-enter"><span class="section-kicker">STADIUM ENTRY · ID VERIFICATION</span>
+<h1>Ticket <em>verification.</em></h1>
+<p>Compare the ticket holder's name and Student ID against their university identification before admitting them.</p></section>
+<section class="container ticket-display-wrap"><article class="admin-panel glass-panel gate-verify-panel">
+  <div role="status" class="gate-verdict {{ 'gate-valid' if status == 'valid' else 'gate-waiting' if status == 'waiting' else 'gate-invalid' }}">{{ title }}</div>
+  <p class="gate-guidance">{{ guidance }}</p>
+  {% if ticket %}
+    <h2>{{ ticket.event.title }}</h2>
+    <div class="digital-ticket-grid">
+      <div><span>Student</span><strong>{{ ticket.attendee_name }}</strong></div>
+      <div><span>Student ID</span><strong>{{ ticket.attendee_student_id or 'Unassigned' }}</strong></div>
+      <div><span>Event date</span><strong>{{ ticket.event.starts_at.strftime('%d %b %Y') }}</strong></div>
+      <div><span>Time · campus local</span><strong>{{ ticket.event.starts_at.strftime('%I:%M %p') }}</strong></div>
+      <div><span>Venue</span><strong>{{ ticket.event.venue }}</strong></div>
+      <div><span>Entrance gate</span><strong>{{ ticket.seat.gate.name if ticket.seat.gate else 'Check with staff' }}</strong></div>
+      <div><span>Section / seat</span><strong>{{ ticket.seat.display_label }}</strong></div>
+      <div><span>Ticket ID</span><strong>CSTBS-{{ '%06d'|format(ticket.id) }}</strong></div>
+    </div>
+    <form method="get" action="{{ url_for('entry.verify', token=token) }}" class="admin-stack-form gate-select-form">
+      <label for="verify-gate">Which entrance are you scanning at?</label>
+      <select class="form-control" id="verify-gate" name="gate_id" required>
+        <option value="">Select entrance</option>
+        {% for option in gates %}
+          <option value="{{ option.id }}" {% if gate and gate.id == option.id %}selected{% endif %}>{{ option.name }} — {{ 'OPEN' if option.is_open else 'CLOSED' }}</option>
+        {% endfor %}
+      </select>
+      <button class="button button-secondary" type="submit">Check selected gate</button>
+    </form>
+    {% if status == 'valid' %}
+      <form method="post" action="{{ url_for('entry.check_in', token=token) }}" data-confirm="Have you checked the student's university identity? Admit this ticket now?">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="gate_id" value="{{ gate.id }}">
+        <button class="button button-primary button-full" type="submit">Confirm entry — one time only</button>
+      </form>
+    {% elif ticket.status == 'checked_in' %}
+      <p class="flash flash-error">Previously checked in at {{ ticket.checked_in_at.strftime('%d %b %Y %I:%M %p') if ticket.checked_in_at else 'an earlier time' }}.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">Do not admit this ticket. Ask the student to present the QR from their CSTBS account.</p>
+  {% endif %}
+  <div class="quick-actions"><a class="button button-secondary" href="{{ url_for('entry.scan', gate_id=gate.id) if gate else url_for('entry.scan') }}">Scan next ticket</a>
+  {% if current_user.is_admin and ticket %}<a class="button button-secondary" href="{{ url_for('admin.gates', event_id=ticket.event_id) }}">Admin: manage gates</a>{% endif %}</div>
 </article></section>
 {% endblock %}

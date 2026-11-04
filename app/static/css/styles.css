@@ -1,4 +1,4 @@
-/* CSTBS Version 1: responsive, framework-free styling. */
+/* Responsive, framework-free styling. */
 :root {
     color-scheme: light;
     --ink: #14243b;
@@ -191,7 +191,7 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
     *, *::before, *::after { transition: none !important; }
 }
 
-/* Version 2: authenticated navigation, account and admin event management. */
+/* Authenticated navigation, account and event management. */
 .logout-form { margin: 0; }
 .logout-button { border: 1px solid var(--border); background: var(--white); color: var(--ink); padding: 10px 15px; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
 .logout-button:hover { color: #a36523; background: var(--surface); }
@@ -291,7 +291,7 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
 @media (max-width: 900px) { .seat-layout { grid-template-columns: 1fr; } .seat-checkout { position: static; } }
 @media (max-width: 620px) { .history-card { flex-direction: column; align-items: flex-start; } .seat-card { padding: 17px; } .seat-legend { gap: 12px; } }
 
-/* Version 4: responsive operations dashboard and multi-section seating. */
+/* Responsive operations dashboard and multi-section seating. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .muted, .admin-help { color: var(--muted); font-size: .86rem; }
 .admin-page-title { padding-bottom: 22px; }
@@ -373,13 +373,13 @@ a.metric-card:hover { border-color: #aacbd2; background: #eaf5f4; }
 .error-page > p:not(.error-code) { color: var(--muted); }
 .error-actions { display: flex; justify-content: center; align-items: center; gap: 25px; flex-wrap: wrap; margin-top: 30px; }
 
-/* V5.1 student identity + admin invitation interface */
+/* Student identity and admin invitation interface */
 .invitation-key { overflow-wrap: anywhere; font: 700 clamp(1rem,2.8vw,1.4rem)/1.5 ui-monospace,Consolas,monospace; color: #123c68; background: #f0f5fa; border: 1px dashed #8fa8c1; border-radius: .65rem; padding: 1rem 1.2rem; margin: 1.1rem 0; }
 .student-id-inline { max-width: 450px; margin: 1rem 0; padding: 1rem 0; border-top: 1px solid #e3e8f1; }
 .student-id-admin { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .35rem; }
 .student-id-admin .form-control { min-width: 125px; max-width: 170px; }
 
-/* V5.3 - stadium night / campus day theme. Smooth, accessible, no frameworks. */
+/* Stadium night / campus day theme. Smooth, accessible, no frameworks. */
 :root {
   --ui-ink: #14233d;
   --ui-surface: rgba(255,255,255,.88);
@@ -490,4 +490,79 @@ html[data-theme="night"] .admin-table tr:hover {background: #233a59;}
   .animated-enter,.seat-button.is-selected{animation:none!important;}
   .reveal-ready{opacity:1!important;transform:none!important;transition:none!important;}
   .theme-toggle,.seat-button{transition:none!important;}
+}
+
+/* Separate role dashboards and accessible stadium operations UI */
+.ops-control-panel { margin: 20px 0; }
+.ops-event-list, .student-tickets-list { display: grid; gap: 14px; }
+.ops-event-card, .student-ticket-row { display: flex; justify-content: space-between; align-items: center; gap: 22px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--white); }
+.ops-event-info { flex: 1 1 400px; min-width: 0; }
+.ops-event-top { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; margin-bottom: 8px; }
+.ops-event-top h3, .student-ticket-row h3 { margin: 0; font-size: 1.16rem; }
+.ops-event-info p, .student-ticket-row p { color: var(--muted); font-size: .87rem; margin: 3px 0 12px; }
+.ops-state { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 12px; font-size: .72rem; font-weight: 800; letter-spacing: .05em; white-space: nowrap; }
+.ops-state::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.state-open { color: #146146; background: #dcf7e9; }
+.state-closed { color: #8f3940; background: #fff0ef; }
+.ops-inline-stats { display: flex; gap: 10px 18px; flex-wrap: wrap; font-size: .82rem; margin-top: 11px; }
+.ops-inline-stats span { color: var(--muted); }
+.ops-inline-stats strong { color: var(--ink); }
+.ops-capacity { width: min(100%, 520px); margin-top: 13px; height: 8px; border-radius: 20px; background: #e5eaf3; overflow: hidden; }
+.ops-capacity > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #0c9584, #6bcda9); transition: width .3s ease; }
+.ops-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: end; flex: 0 1 285px; }
+.ops-actions form, .ops-shortcuts form { margin: 0; }
+.ops-gate-row, .ops-section-row { display: grid; grid-template-columns: minmax(120px, 1fr) auto auto minmax(200px, 1.5fr); align-items: center; gap: 15px; border-bottom: 1px solid var(--border); padding: 16px 0; }
+.ops-gate-row p { margin: 5px 0 0; font-size: .8rem; }
+.ops-section-row { grid-template-columns: 1fr auto 1fr auto; }
+.ops-section-row small { display: block; color: var(--muted); }
+.ops-rename-form { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.ops-rename-form label { font-size: .72rem; }
+.ops-rename-form input { max-width: 160px; }
+.add-gate-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding-top: 22px; }
+.add-gate-form .form-control { max-width: 240px; }
+.dashboard-split-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 22px; }
+.student-action-card { display: block; border-radius: 18px; padding: 26px; border: 1px solid var(--border); background: var(--white); box-shadow: var(--shadow); transition: transform .2s ease, box-shadow .2s ease; }
+.student-action-card:hover { transform: translateY(-3px); box-shadow: 0 22px 45px rgba(17,35,56,.15); }
+.student-action-card h2 { font-size: 1.35rem; margin: 8px 0; }
+.student-action-card p { color: var(--muted); font-size: .88rem; min-height: 65px; }
+.student-action-icon { display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; background: #e7f0f9; font-size: 1.4rem; color: #24476b; }
+.student-dashboard .admin-panel { margin-top: 22px; }
+.student-ticket-row h3 { overflow-wrap: anywhere; }
+.gate-verify-panel { width: min(100%, 810px); }
+.gate-guidance { font-size: 1.04rem; font-weight: 650; }
+.gate-waiting { background: #fff1c7; color: #83521c; }
+.gate-select-form { margin-block: 23px; padding-block: 16px; border-top: 1px solid var(--border); }
+.gate-select-form select { max-width: 380px; }
+.ticket-facts-grid { margin-bottom: 20px; }
+.ticket-instructions { margin-top: 20px; font-size: .85rem; color: var(--muted); background: var(--surface); padding: 14px; border-radius: 10px; }
+.soft-divider { border: 0; border-top: 1px solid var(--border); margin: 22px 0; }
+#qr-photo-form, #manual-code-form { margin-top: 13px; }
+#qr-photo { width: 100%; }
+html[data-theme="night"] .ops-event-card,
+html[data-theme="night"] .ops-gate-row,
+html[data-theme="night"] .student-ticket-row,
+html[data-theme="night"] .student-action-card { background: #1a2c46; border-color: #354e6d; color: #ecf3ff; }
+html[data-theme="night"] .ops-inline-stats strong { color: #f1f6fc; }
+html[data-theme="night"] .student-action-icon { background: #2c4768; color: #e6f4ff; }
+html[data-theme="night"] .state-closed { background: #4d2a30; color: #ffd3d3; }
+html[data-theme="night"] .state-open { background: #184a3d; color: #a1fbd4; }
+html[data-theme="night"] .gate-waiting { background: #483719; color: #ffe1a4; }
+@media (max-width: 950px) {
+ .ops-event-card { flex-direction: column; align-items: stretch; }
+ .ops-actions { justify-content: start; flex-basis: auto; }
+ .dashboard-split-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+ .ops-gate-row { grid-template-columns: 1fr 1fr; }
+ .ops-section-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+ .dashboard-split-cards, .ops-gate-row, .ops-section-row { grid-template-columns: 1fr; }
+ .ops-event-card, .student-ticket-row { padding: 14px; }
+ .student-ticket-row { align-items: start; flex-direction: column; }
+ .ops-actions .button { width: 100%; }
+ .ops-actions form { flex: 1; width: 100%; }
+ .ops-gate-row .ops-rename-form { flex-wrap: wrap; }
+ .add-gate-form { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .ops-capacity > span, .student-action-card { transition: none !important; }
 }

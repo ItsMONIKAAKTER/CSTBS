@@ -5,13 +5,14 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from sqlalchemy import func, select
 from app import create_app, db
+from testing_support import create_isolated_test_app
 from app.admin_keys import issue_login_key, provision_first_admin
 from app.models import AdminInvitation, Booking, Event, Seat, User, utc_now
 
 
 class UniversityAccountRegressionTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({"TESTING": True,
+        self.app = create_isolated_test_app({"TESTING": True,
             "SECRET_KEY": "v53-test-secret-do-not-use-in-production",
             "TICKET_SIGNING_KEY": "v53-test-qr-secret-do-not-use-in-production",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",

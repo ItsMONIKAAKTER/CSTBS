@@ -103,7 +103,7 @@ def create_app(test_config=None):
             return redirect(url_for("main.admin_login"))
         return redirect(url_for("main.login", next=request.full_path))
 
-    from .models import User, AdminInvitation, Ticket  # Register all SQLAlchemy models.
+    from .models import User, AdminInvitation, Ticket, Gate  # Register all SQLAlchemy models.
     from .routes import main
     from .admin import admin
     from .reports import reports
@@ -129,7 +129,7 @@ def create_app(test_config=None):
             db.session.execute(select(1)).scalar_one()
         except Exception:
             return jsonify(status="unavailable"), 503
-        return jsonify(status="ok", version="5.3")
+        return jsonify(status="ok")
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(_error):
@@ -171,6 +171,7 @@ def create_app(test_config=None):
         from .migrations_v51 import upgrade_v51
         from .migrations_v52 import upgrade_v52
         from .migrations_v53 import upgrade_v53
+        from .migrations_v54 import upgrade_v54
         from .backups import sqlite_backup
         # Backup legacy V5.2 DB before any schema changes, or abort on failure.
         sqlite_backup(version_guard=True) if db.engine.dialect.name == "sqlite" else None
@@ -181,6 +182,7 @@ def create_app(test_config=None):
         upgrade_v51()
         upgrade_v52()
         upgrade_v53()
+        upgrade_v54()
         backfill_empty_event_seats()
 
     if app.config.get("APP_ENV") != "production":
@@ -264,8 +266,8 @@ def create_app(test_config=None):
 
     @app.cli.command("reset-bootstrap-key")
     def legacy_key_command():
-        """Guide users of V5.1 to the new explicit admin key workflow."""
-        raise click.ClickException("V5.3 uses admin-key EMAIL (pending activation), "
+        """Guide operators to the supported admin recovery commands."""
+        raise click.ClickException("Use admin-key EMAIL (pending activation), "
                                    "admin-reset EMAIL (password recovery), or admin-setup.")
 
     @app.cli.command("set-role")

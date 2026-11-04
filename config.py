@@ -49,8 +49,8 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///cstbs.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"timeout": 15}} if SQLALCHEMY_DATABASE_URI.startswith("sqlite:") else {}
-    MAX_CONTENT_LENGTH = 128 * 1024  # Forms never need large uploads.
-    MAX_FORM_MEMORY_SIZE = 64 * 1024
+    MAX_CONTENT_LENGTH = 4 * 1024 * 1024  # Includes one bounded QR photograph.
+    MAX_FORM_MEMORY_SIZE = 4 * 1024 * 1024  # QR photo multipart requests; global cap still applies.
     WTF_CSRF_TIME_LIMIT = 3600
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"

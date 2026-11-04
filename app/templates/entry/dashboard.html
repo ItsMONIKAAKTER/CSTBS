@@ -7,6 +7,9 @@
 <div class="admin-panel glass-panel"><h2>Gate check-in summary</h2><div class="table-scroll"><table class="admin-table">
 <thead><tr><th>Event</th><th>Gate status</th><th>Checked in</th><th>Action</th></tr></thead><tbody>
 {% for event, checked_in in counts %}<tr><td>{{ event.title }}</td><td>{{ 'Open' if event.checkin_enabled else 'Closed' }}</td>
-<td><strong>{{ checked_in }}</strong></td><td><a class="button button-secondary button-small" href="{{ url_for('entry.scan') }}">Scan tickets</a></td></tr>{% endfor %}
+<td><strong>{{ checked_in }}</strong></td><td>
+    <a class="button button-secondary button-small" href="{{ url_for('entry.scan') }}">Scan tickets</a>
+    {% if current_user.is_admin %}<a class="button button-secondary button-small" href="{{ url_for('admin.gates', event_id=event.id) }}">Open / close gates</a>{% endif %}
+  </td></tr>{% endfor %}
 </tbody></table></div></div></section>
 {% endblock %}
