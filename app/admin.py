@@ -13,11 +13,12 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
-from . import db
+from . import db, limiter
 from .authz import admin_required
-from .forms import CreateSectionForm, RenameSectionForm, RoleForm
+from .forms import CreateSectionForm, RenameSectionForm, RoleForm, AdminInviteForm, StudentIDForm
 from .models import Booking, Event, Seat, User
 from .notifications import notify_booking_cancelled
+from .admin_keys import issue_key
 
 admin = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -178,7 +179,7 @@ def delete_section(event_id, section):
 def users():
     """Display all accounts and admin-controlled roles."""
     accounts = db.session.scalars(select(User).order_by(User.created_at.desc(), User.id.desc())).all()
-    return render_template("admin/users.html", users=accounts)
+    return render_template("admin/users.html", users=accounts, invite_form=AdminInviteForm())
 
 
 @admin.post("/users/<int:user_id>/role")
@@ -195,10 +196,57 @@ def change_role(user_id):
         select(func.count(User.id)).where(User.role == "admin")
     ) <= 1:
         flash("At least one administrator must remain.", "error")
+    elif form.role.data == "student" and not account.student_id:
+        flash("Assign a unique Student ID before changing this user to student.", "error")
     else:
         account.role = form.role.data
         db.session.commit()
         flash(f"Role updated for {account.email}.", "success")
+    return redirect(url_for("admin.users"))
+
+
+@admin.post("/admin-invitations/new")
+@limiter.limit("10 per hour")
+@_admin_route
+def generate_admin_key():
+    """Display a newly generated single-use admin key only in this response."""
+    form = AdminInviteForm()
+    if not form.validate_on_submit():
+        abort(400)
+    key = issue_key(created_by=current_user.id, minutes=60)
+    response = render_template("admin/invitation_created.html", key=key)
+    from flask import make_response
+    result = make_response(response)
+    result.headers["Cache-Control"] = "no-store, private"
+    result.headers["Pragma"] = "no-cache"
+    return result
+
+
+@admin.post("/users/<int:user_id>/student-id")
+@_admin_route
+def change_student_id(user_id):
+    """Allow admins to correct existing student IDs without deleting bookings."""
+    account = db.get_or_404(User, user_id)
+    if account.role != "student":
+        flash("Student IDs are managed for student accounts only.", "error")
+        return redirect(url_for("admin.users"))
+    form = StudentIDForm()
+    if not form.validate_on_submit():
+        flash("Use a 6–20-character letters/numbers Student ID.", "error")
+    else:
+        candidate = form.student_id.data.strip().upper()
+        existing = db.session.scalar(select(User.id).where(
+            User.student_id == candidate, User.id != user_id))
+        if existing is not None:
+            flash("This Student ID is already in use.", "error")
+        else:
+            account.student_id = candidate
+            try:
+                db.session.commit()
+                flash("Student ID saved.", "success")
+            except IntegrityError:
+                db.session.rollback()
+                flash("This Student ID is already in use.", "error")
     return redirect(url_for("admin.users"))
 
 

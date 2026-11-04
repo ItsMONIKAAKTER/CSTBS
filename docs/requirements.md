@@ -1,3 +1,22 @@
+# Requirements Update — CSTBS v5.1
+
+- **FR-51-01:** Visitor can create a student account only with full name, email, password and a unique 6–20-character Student ID. Student role is server-assigned.
+- **FR-51-02:** Initial administrator can register through the website using a secret key generated in the local terminal, valid for 60 minutes and one use.
+- **FR-51-03:** Existing administrator can generate further single-use invitations on the website, without changing Python files or SQLite rows manually.
+- **FR-51-04:** Registered users (student, staff, admin) log in using one common login page.
+- **FR-51-05:** Admin manages Student IDs, user roles, event CRUD, seats, sections, bookings and reports from the web UI.
+- **FR-51-06:** All admission is free (RMB/CNY ¥0.00); ticket payment, charges and refunds are out of scope.
+- **FR-51-07:** Existing V5 users, events and booking history survive a controlled migration.
+- **SEC-51-01:** Stored admin invitation tokens are keyed hashes; keys expire and are atomically consumed, and admin invitation generation requires admin role + CSRF.
+- **SEC-51-02:** Student ID is checked server-side and unique in SQLite; student and admin registration endpoints are rate limited.
+- **ACC-51-01:** A reused or expired admin key never creates an account; forged student role and client price are ignored.
+- **ACC-51-02:** A seat confirmed for an event has amount due ¥0.00, including legacy events once updated.
+- **ACC-51-03:** Admin UI provides key generation and Student ID editing without an IDE.
+
+---
+
+## V5 historical requirements
+
 # CSTBS V5 — Requirements and Verification
 
 ## Goal and scope

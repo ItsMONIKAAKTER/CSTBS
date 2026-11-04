@@ -3,16 +3,31 @@
 {% block content %}
 <section class="page-heading container admin-page-title">
   <span class="section-kicker">ADMIN / ACCOUNTS</span><h1>User <em>roles.</em></h1>
-  <p>Assign student, staff or admin access to registered users. Your own role cannot be changed here.</p>
+  <p>Manage Student IDs and user roles. Create single-use invitations for new administrators.</p>
 </section>
 <section class="container admin-section">
   {% include 'admin/_nav.html' %}
   <div class="admin-panel">
+    <div class="admin-panel-head"><div><h2>Invite an administrator</h2><p>Generate a one-time key, shown once. It expires in 60 minutes.</p></div>
+    <form action="{{ url_for('admin.generate_admin_key') }}" method="post">
+      {{ invite_form.hidden_tag() }}
+      {{ invite_form.submit(class='button button-primary') }}
+    </form></div>
+  </div>
+  <div class="admin-panel">
     <div class="admin-panel-head"><h2>Registered accounts</h2><span class="catalog-count">{{ users|length }} users</span></div>
     {% if users %}<div class="table-scroll"><table class="admin-table">
-      <thead><tr><th>User</th><th>Member since</th><th>Role</th><th>Change access</th></tr></thead>
+      <thead><tr><th>User / Student ID</th><th>Member since</th><th>Role</th><th>Change access</th></tr></thead>
       <tbody>{% for user in users %}<tr>
-        <td><strong>{{ user.full_name }}</strong><small>{{ user.email }}</small></td>
+        <td><strong>{{ user.full_name }}</strong><small>{{ user.email }}</small>
+          {% if user.role == 'student' %}
+          <form class="role-edit student-id-admin" method="post" action="{{ url_for('admin.change_student_id', user_id=user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="sr-only" for="student-id-{{ user.id }}">Student ID of {{ user.email }}</label>
+            <input class="form-control" id="student-id-{{ user.id }}" name="student_id" minlength="6" maxlength="20" required
+                   pattern="[A-Za-z0-9]{6,20}" placeholder="Student ID" value="{{ user.student_id or '' }}">
+            <button class="button button-secondary button-small" type="submit">Save ID</button>
+          </form>{% endif %}</td>
         <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
         <td><span class="role-pill">{{ user.role|capitalize }}</span></td>
         <td>{% if user.id == current_user.id %}<span class="muted">Current account (locked)</span>{% else %}

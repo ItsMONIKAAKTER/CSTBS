@@ -15,7 +15,7 @@
         <span class="history-state {% if booking.status == 'reserved' %}is-active{% else %}is-cancelled{% endif %}">{{ booking.status|capitalize }}</span>
         <h2><a href="{{ url_for('main.event_detail', event_id=booking.event.id) }}">{{ booking.event.title }}</a></h2>
         <p>{{ booking.event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ booking.event.venue }}</p>
-        <p>Seat <strong>{{ booking.seat.label }}</strong> · Section {{ booking.seat.section }} · <strong>${{ '%.2f'|format(booking.price_at_booking) }}</strong></p>
+        <p>Seat <strong>{{ booking.seat.label }}</strong> · Section {{ booking.seat.section }} · <strong>Free admission · ¥0.00</strong></p>
         <small>Booking #{{ booking.id }} · {{ booking.created_at.strftime('%b %d, %Y') }}</small>
       </div>
       {% if booking.status == 'reserved' %}

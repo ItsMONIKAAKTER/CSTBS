@@ -25,7 +25,7 @@
         <td>#{{ booking.id }}<small>{{ booking.created_at.strftime('%b %d, %Y') }}</small></td>
         <td><strong>{{ booking.user.full_name }}</strong><small>{{ booking.user.email }}</small></td>
         <td>{{ booking.event.title }}<small>{{ booking.seat.display_label }}</small></td>
-        <td>${{ '%.2f'|format(booking.price_at_booking) }}</td>
+        <td>¥0.00</td>
         <td><span class="history-state {{ 'is-active' if booking.status == 'reserved' else 'is-cancelled' }}">{{ booking.status|capitalize }}</span></td>
         <td>{% if booking.status == 'reserved' %}<form method="post" action="{{ url_for('admin.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this user's booking?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="button button-danger button-small">Cancel</button>

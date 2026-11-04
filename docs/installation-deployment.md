@@ -1,3 +1,45 @@
+# Installation & Deployment — CSTBS v5.1
+
+## Windows development (recommended demonstration)
+
+Extract `CSTBS-v5.1.zip`, open PowerShell in the folder and run:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+Paste the key into the `.env` `SECRET_KEY`. Then:
+
+```powershell
+python -m flask --app run.py init-db
+python -m flask --app run.py seed-events
+python run.py
+```
+
+Copy the initial admin key **from the terminal**. Browse `http://127.0.0.1:5000/register/admin` and register. If you lose the key or it expires before any admin is created, use `python -m flask --app run.py reset-bootstrap-key` to invalidate it and generate another. Then `/admin/users` provides additional one-use keys via the website. Students self-register with Student ID at `/register`.
+
+Run `python -m unittest discover -s tests -v` before use. All admissions are free in Chinese yuan (CNY ¥0.00); no payment gateway is involved.
+
+## Migrating a V5 database
+
+Stop the V5 server. Back up `instance/cstbs.db` offline and copy the backup into V5.1. Preserve the private `.env`/secret. Run `python -m flask --app run.py init-db` to add `users.student_id` (nullable for legacy records), a partial unique student-ID index, the `admin_invitations` table and reset existing event prices to zero. It **does not remove users or bookings**. Historical booking price snapshots are retained for audit compatibility; all V5.1 reservations are free. Review and back up all data before deploying.
+
+## Production/admin bootstrap security
+
+- `APP_ENV=production` does not auto-initialize databases or print bootstrap keys on app startup. Run `flask init-db` and `flask reset-bootstrap-key` in a **private operator console** (only when no administrator exists). Never expose the key in web server logs.
+- Keep `.env`, database, console output, email previews and student booking exports restricted. Enforce HTTPS, trusted hosts, secure cookies, SMTP and a shared Redis rate-limit backend. Use one SQLite writer/small pilot or migrate to PostgreSQL with Alembic for scale.
+- The current one-time key is printed once and not recoverable from SQLite. Expired bootstrap keys must be renewed with the CLI, and admin-created keys expire in 60 minutes. Rotate any disclosed key by issuing a new one and do not use the disclosed key.
+- App startup key display is **development only**. A terminal command remains as a secure recovery/provisioning mechanism, not a need to manually edit code or add users in PyCharm.
+- Validate email, CSRF, invitation replay, role checks, rollback integrity, Student ID privacy, and backup/restore before production use.
+
+---
+
+## Previous V5 deployment guide (archived context)
+
 # CSTBS v5.0 — Installation & Deployment Guide
 
 ## Supported environment

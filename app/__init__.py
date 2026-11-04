@@ -83,7 +83,7 @@ def create_app(test_config=None):
     login_manager.login_view = "main.login"
     login_manager.login_message_category = "info"
 
-    from .models import User  # Register all SQLAlchemy models.
+    from .models import User, AdminInvitation  # Register all SQLAlchemy models.
     from .routes import main
     from .admin import admin
     from .reports import reports
@@ -137,10 +137,12 @@ def create_app(test_config=None):
             upgrade_v3_seat_blocking,
         )
         from .seating import backfill_empty_event_seats
+        from .migrations_v51 import upgrade_v51
         db.create_all()
         upgrade_v1_user_schema()
         upgrade_v2_booking_constraints()
         upgrade_v3_seat_blocking()
+        upgrade_v51()
         backfill_empty_event_seats()
 
     if app.config.get("APP_ENV") != "production":
@@ -170,6 +172,18 @@ def create_app(test_config=None):
         except ValueError as exc:
             raise click.ClickException(str(exc)) from exc
         click.echo(result)
+
+    @app.cli.command("reset-bootstrap-key")
+    def reset_bootstrap_key_command():
+        """Recover initial registration key (requires terminal access)."""
+        from sqlalchemy import func
+        from .admin_keys import issue_key, revoke_unused_bootstrap
+        if db.session.scalar(select(func.count(User.id)).where(User.role == "admin")):
+            raise click.ClickException("An admin already exists; create invitations in /admin/users.")
+        revoke_unused_bootstrap()
+        key = issue_key(bootstrap=True, minutes=60)
+        click.echo(f"New one-time administrator key (60 minutes): {key}")
+        click.echo("Register at /register/admin. Keep this terminal output private.")
 
     @app.cli.command("set-role")
     @click.argument("email")

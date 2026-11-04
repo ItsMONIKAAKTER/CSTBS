@@ -48,6 +48,7 @@ class CSTBSTests(unittest.TestCase):
         return self.client.post("/register", data={
             "csrf_token": self.csrf("/register"),
             "full_name": "Campus Student",
+            "student_id": "STU" + __import__("hashlib").sha256(email.lower().encode()).hexdigest()[:8].upper(),
             "email": email,
             "password": password,
             "confirm_password": password,
@@ -107,6 +108,7 @@ class CSTBSTests(unittest.TestCase):
         payload = {
             "csrf_token": self.csrf("/register"),
             "full_name": "Untrusted User",
+            "student_id": "STU2026001",
             "email": "untrusted@example.edu",
             "password": "StrongPass123",
             "confirm_password": "StrongPass123",
@@ -153,7 +155,7 @@ class CSTBSTests(unittest.TestCase):
         ), follow_redirects=True)
         self.assertIn(b"Open Day Cup", created.data)
         event = db.session.scalar(select(Event).where(Event.title == "Open Day Cup"))
-        self.assertEqual(event.price, Decimal("12.50"))
+        self.assertEqual(event.price, Decimal("0.00"))
         modified = self.client.post(f"/admin/events/{event.id}/edit", data=self.event_data(
             self.csrf(f"/admin/events/{event.id}/edit"), title="Updated Cup"
         ), follow_redirects=True)
@@ -203,14 +205,15 @@ class CSTBSTests(unittest.TestCase):
         self.assertIn(b"booking history", response.data)
         self.assertIsNotNone(db.session.get(Event, event.id))
 
-    def test_admin_event_rejects_negative_price(self):
+    def test_admin_event_ignores_forged_negative_price(self):
         self.make_user("admin@example.edu", "admin")
         self.sign_in("admin@example.edu")
         data = self.event_data(self.csrf("/admin/events/new"))
         data["price"] = "-1.00"
         response = self.client.post("/admin/events/new", data=data)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(db.session.scalar(select(func.count(Event.id))), 0)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(db.session.scalar(select(func.count(Event.id))), 1)
+        self.assertEqual(db.session.scalar(select(Event.price)), Decimal("0.00"))
 
     def test_role_assignment_cli(self):
         self.make_user("student@example.edu", "student")

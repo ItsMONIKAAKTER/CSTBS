@@ -10,9 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from . import db, limiter
 from .authz import admin_required
 from .notifications import notify_booking_confirmed, notify_booking_cancelled
-from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm
-from .models import Booking, Event, Seat, User
+from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm, AdminRegisterForm, StudentIDForm
+from .models import Booking, Event, Seat, User, utc_now
 from .seating import MAX_SEATS_PER_BOOKING, add_default_seats, reserved_seat_ids
+from .admin_keys import find_valid_invitation, consume_invitation
 
 main = Blueprint("main", __name__)
 
@@ -60,22 +61,90 @@ def register():
     form = RegisterForm()
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
+        student_id = form.student_id.data.strip().upper()
         if db.session.scalar(select(User.id).where(User.email == email)) is not None:
             form.email.errors.append("An account with this email already exists.")
+        elif db.session.scalar(select(User.id).where(User.student_id == student_id)) is not None:
+            form.student_id.errors.append("This Student ID is already registered.")
         else:
-            user = User(full_name=form.full_name.data.strip(), email=email, role="student")
+            user = User(full_name=form.full_name.data.strip(), email=email,
+                        student_id=student_id, role="student")
             user.set_password(form.password.data)
             db.session.add(user)
             try:
                 db.session.commit()
             except IntegrityError:  # Handles concurrent submissions racing on email.
                 db.session.rollback()
-                form.email.errors.append("An account with this email already exists.")
+                form.email.errors.append("Email or Student ID is already registered.")
             else:
                 login_user(user)
                 flash("Account created. Welcome to CSTBS!", "success")
                 return redirect(url_for("main.account"))
     return render_template("register.html", form=form)
+
+
+@main.route("/register/admin", methods=["GET", "POST"])
+@limiter.limit("4 per minute; 12 per hour", methods=["POST"])
+def register_admin():
+    """Create an administrator only with an unused, unexpired invitation."""
+    if current_user.is_authenticated:
+        return redirect(url_for("main.account"))
+    form = AdminRegisterForm()
+    if form.validate_on_submit():
+        email = form.email.data.strip().lower()
+        if db.session.scalar(select(User.id).where(User.email == email)) is not None:
+            form.email.errors.append("An account with this email already exists.")
+        else:
+            invitation = find_valid_invitation(form.admin_key.data)
+            if invitation is None:
+                form.admin_key.errors.append("Invalid, expired, or already-used admin key.")
+            else:
+                user = User(full_name=form.full_name.data.strip(), email=email, role="admin")
+                user.set_password(form.password.data)
+                db.session.add(user)
+                try:
+                    db.session.flush()  # Reserve user ID before atomic token consumption.
+                    if not consume_invitation(invitation, user.id):
+                        db.session.rollback()
+                        form.admin_key.errors.append("Invalid or already-used admin key.")
+                    else:
+                        db.session.commit()
+                except IntegrityError:
+                    db.session.rollback()
+                    form.email.errors.append("Account or admin key has already been used.")
+                else:
+                    if user.id is not None and not form.admin_key.errors:
+                        login_user(user)
+                        flash("Administrator account created successfully.", "success")
+                        return redirect(url_for("admin.dashboard"))
+    response = render_template("register_admin.html", form=form)
+    return response
+
+
+@main.post("/account/student-id")
+@login_required
+def update_student_id():
+    """Existing student accounts can provide a missing unique university ID."""
+    if current_user.role != "student":
+        abort(403)
+    form = StudentIDForm()
+    if form.validate_on_submit():
+        candidate = form.student_id.data.strip().upper()
+        found = db.session.scalar(select(User.id).where(
+            User.student_id == candidate, User.id != current_user.id))
+        if found is not None:
+            flash("Student ID is already registered.", "error")
+        else:
+            current_user.student_id = candidate
+            try:
+                db.session.commit()
+                flash("Student ID updated.", "success")
+            except IntegrityError:
+                db.session.rollback()
+                flash("Student ID is already registered.", "error")
+    else:
+        flash("Student ID must contain 6–20 letters or numbers.", "error")
+    return redirect(url_for("main.account"))
 
 
 @main.route("/login", methods=["GET", "POST"])
@@ -110,7 +179,7 @@ def logout():
 @login_required
 def account():
     """Display the logged-in user's basic account information."""
-    return render_template("account.html")
+    return render_template("account.html", student_id_form=StudentIDForm())
 
 
 @main.get("/admin/events")
@@ -133,6 +202,7 @@ def admin_event_create():
     if form.validate_on_submit():
         event = Event()
         form.populate_obj(event)
+        event.price = 0  # All university reservations are free.
         db.session.add(event)
         add_default_seats(event)
         db.session.commit()
@@ -150,6 +220,7 @@ def admin_event_edit(event_id):
     form = EventForm(obj=event)
     if form.validate_on_submit():
         form.populate_obj(event)
+        event.price = 0
         db.session.commit()
         flash("Event updated successfully.", "success")
         return redirect(url_for("main.event_detail", event_id=event.id))
@@ -268,7 +339,7 @@ def booking_review(event_id):
     session["pending_booking"] = {"event_id": event.id,
                                   "seat_ids": [seat.id for seat in seats]}
     return render_template("booking_review.html", event=event, seats=seats,
-                           total=event.price * len(seats))
+                           total=0)
 
 
 @main.post("/events/<int:event_id>/booking/confirm")
@@ -288,7 +359,7 @@ def booking_confirm(event_id):
         flash(error, "error")
         return redirect(url_for("main.seat_map", event_id=event.id))
     bookings = [Booking(user_id=current_user.id, seat_id=seat.id,
-                        status="reserved", price_at_booking=event.price)
+                        status="reserved", price_at_booking=0)
                 for seat in seats]
     db.session.add_all(bookings)
     try:

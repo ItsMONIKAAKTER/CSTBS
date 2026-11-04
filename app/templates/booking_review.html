@@ -12,8 +12,8 @@
     <p class="confirm-details">{{ event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
     <div class="confirm-seats"><span>Selected seats</span><strong>{% for seat in seats %}{{ seat.display_label }}{% if not loop.last %}, {% endif %}{% endfor %}</strong></div>
     <div class="confirm-seats"><span>Quantity</span><strong>{{ seats|length }}</strong></div>
-    <div class="confirm-seats"><span>Price per seat</span><strong>${{ '%.2f'|format(event.price) }}</strong></div>
-    <div class="checkout-total"><span>Total (no payment charged)</span><strong>${{ '%.2f'|format(total) }}</strong></div>
+    <div class="confirm-seats"><span>Admission</span><strong>Free</strong></div>
+    <div class="checkout-total"><span>Amount due</span><strong>¥0.00</strong></div>
     <div class="confirm-actions">
       <form method="post" action="{{ url_for('main.booking_confirm', event_id=event.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

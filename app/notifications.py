@@ -33,11 +33,10 @@ def _deliver(subject, recipient, body):
 def notify_booking_confirmed(user, event, bookings):
     """Send one summary email after a multi-seat confirmation commits."""
     names = ", ".join(booking.seat.display_label for booking in bookings)
-    total = sum((booking.price_at_booking for booking in bookings), start=0)
     body = (f"Hello {user.full_name},\n\nYour CSTBS reservation is confirmed.\n\n"
             f"Event: {event.title}\nVenue: {event.venue}\n"
             f"When: {event.starts_at:%Y-%m-%d %H:%M} (campus time)\n"
-            f"Seats: {names}\nAmount: ${total:.2f} (informational; no payment collected)\n\n"
+            f"Seats: {names}\nAdmission: Free (CNY ¥0.00); no payment required.\n\n"
             "View your reservations by signing in to CSTBS.\n")
     return _deliver(f"CSTBS booking confirmed: {event.title}", user.email, body)
 
@@ -46,6 +45,6 @@ def notify_booking_cancelled(booking):
     """Notify the booking owner, including when an admin cancelled it."""
     body = (f"Hello {booking.user.full_name},\n\nYour CSTBS reservation was cancelled.\n\n"
             f"Event: {booking.event.title}\nSeat: {booking.seat.display_label}\n"
-            "No payment or refund is involved in this development version.\n")
+            "University reservations are free; no payment or refund is involved.\n")
     return _deliver(f"CSTBS booking cancelled: {booking.event.title}",
                     booking.user.email, body)

@@ -13,8 +13,19 @@
             <div><dt>Name</dt><dd>{{ current_user.full_name }}</dd></div>
             <div><dt>Email</dt><dd>{{ current_user.email }}</dd></div>
             <div><dt>Role</dt><dd><span class="role-pill">{{ current_user.role|capitalize }}</span></dd></div>
+            {% if current_user.role == 'student' %}<div><dt>Student ID</dt><dd>{{ current_user.student_id or 'Not yet provided (legacy account)' }}</dd></div>{% endif %}
             <div><dt>Member since</dt><dd>{{ current_user.created_at.strftime('%b %d, %Y') }}</dd></div>
         </dl>
+        {% if current_user.role == 'student' %}
+        <form method="post" action="{{ url_for('main.update_student_id') }}" class="student-id-inline">
+            {{ student_id_form.hidden_tag() }}
+            <div class="form-field">{{ student_id_form.student_id.label }}
+                {{ student_id_form.student_id(class='form-control', value=(current_user.student_id or ''), placeholder='Enter university Student ID') }}
+            </div>
+            {{ student_id_form.submit(class='button button-secondary') }}
+            <p class="muted">Update an existing Student ID or complete your older account profile.</p>
+        </form>
+        {% endif %}
         <div class="account-actions">
             <a class="button button-primary" href="{{ url_for('main.booking_history') }}">My bookings</a>
             <a class="button button-secondary" href="{{ url_for('main.events') }}">Browse events</a>

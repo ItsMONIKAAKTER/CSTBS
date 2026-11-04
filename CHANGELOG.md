@@ -1,3 +1,28 @@
+# Changelog — CSTBS v1.0 to v5.1
+
+## [5.1.0] — University Accounts & Free Reservations
+
+### Added
+- Student self-registration with required, unique uppercase-normalized Student ID (6–20 letters/digits).
+- Key-protected administrator registration, one-time HMAC-hashed admin invitations and 60-minute expiry.
+- Initial development admin key displayed in the terminal; secure CLI reset for lost/expired keys.
+- Website-based admin invitation generation and student ID administration.
+- Legacy student self-service profile completion and new invitation audit metadata.
+- Automated V5.1 registration/free-admission tests, updated manuals, UML and database design.
+
+### Changed
+- All university admission and new bookings are free (CNY ¥0.00), with no payment processing.
+- Event admin CRUD no longer exposes a price field. New seeded events and sample bookings cost 0.
+- Existing event catalog pricing is set to zero on SQLite upgrade; historical booking price snapshots remain for database compatibility but do not imply charges.
+- Reports and emails describe free admission, not revenue, USD, or payments.
+
+### Security
+- Bootstrap keys do not grant additional admins after first registration.
+- Admin keys are secret, single-use, expire after 60 minutes, and are never persisted in plaintext.
+- Role and Student ID access restrictions, unique IDs, CSRF, and rate limiting are enforced on the server.
+
+---
+
 # Changelog
 
 All notable CSTBS changes are recorded in this file.

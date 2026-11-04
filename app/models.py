@@ -29,6 +29,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     full_name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(254), unique=True, index=True, nullable=False)
+    student_id = db.Column(db.String(20), unique=True, nullable=True)  # Existing V5 accounts may be empty.
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(20), nullable=False, default="student", server_default="student")
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
@@ -46,6 +47,20 @@ class User(UserMixin, db.Model):
     @property
     def is_admin(self):
         return self.role == "admin"
+
+
+class AdminInvitation(db.Model):
+    """Hashed, expiring, single-use administrator registration invitation."""
+
+    __tablename__ = "admin_invitations"
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    bootstrap = db.Column(db.Boolean, nullable=False, default=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    used_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
 
 
 class Event(db.Model):

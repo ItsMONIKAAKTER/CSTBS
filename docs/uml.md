@@ -1,3 +1,105 @@
+# CSTBS v5.1 — University Registration UML
+
+## Student and administrator registration use cases
+
+```plantuml
+@startuml
+left to right direction
+actor Student
+actor "First local operator" as Operator
+actor Administrator
+rectangle "CSTBS v5.1" {
+  usecase "Register with Student ID" as StudentReg
+  usecase "Generate bootstrap key in terminal" as Bootstrap
+  usecase "Register with one-time admin key" as AdminReg
+  usecase "Issue new admin key from dashboard" as Issue
+  usecase "Manage Student IDs and roles" as Manage
+  usecase "Reserve university seats for free" as Booking
+}
+Student --> StudentReg
+Student --> Booking
+Operator --> Bootstrap
+Administrator --> AdminReg
+Administrator --> Issue
+Administrator --> Manage
+@enduml
+```
+
+## Domain additions
+
+```plantuml
+@startuml
+class User {
+ +id: Integer
+ +email: String
+ +student_id: String [unique, nullable legacy]
+ +role: student|staff|admin
+}
+class AdminInvitation {
+ +id: Integer
+ +token_hash: String [unique]
+ +bootstrap: Boolean
+ +created_at: DateTime
+ +expires_at: DateTime
+ +used_at: DateTime?
+ +created_by_id: Integer?
+ +used_by_id: Integer?
+}
+User "1" <-- "0..*" AdminInvitation : created_by
+User "1" <-- "0..*" AdminInvitation : used_by
+note right of AdminInvitation
+ HMAC-SHA256; no raw token stored
+ 60-minute TTL; atomic one-use update
+end note
+@enduml
+```
+
+## Administrator invitation sequence
+
+```plantuml
+@startuml
+actor Admin
+participant "Admin web UI" as Web
+participant "Flask admin" as API
+database SQLite
+actor "Invited admin" as NewAdmin
+Admin -> Web : Generate one-time key
+Web -> API : POST /admin/admin-invitations/new + CSRF
+API -> SQLite : INSERT invitation HMAC hash + expiry
+SQLite --> API : committed
+API --> Web : Show plaintext key once (no-store)
+Admin -> NewAdmin : Share key privately
+NewAdmin -> API : POST /register/admin + key + form + CSRF
+API -> SQLite : Look up valid hashed key
+API -> SQLite : INSERT user; guarded UPDATE used_at
+SQLite --> API : COMMIT; account created
+API --> NewAdmin : Admin dashboard
+@enduml
+```
+
+## Booking without payment
+
+```plantuml
+@startuml
+actor Student
+participant "Seat map" as Web
+participant "Booking routes" as Flask
+database SQLite
+Student -> Web : Choose seats
+Web -> Flask : Review selected seats
+Flask -> SQLite : Check blocked/reserved status
+Flask --> Web : Free admission, ¥0.00
+Student -> Flask : Confirm (CSRF)
+Flask -> SQLite : Recheck + insert bookings (price_at_booking=0)
+SQLite --> Flask : Commit / conflict
+Flask --> Student : Booking confirmation / error
+@enduml
+```
+
+---
+
+## V5 UML (historical context)
+
 # CSTBS Version 5 — UML (PlantUML)
 
 The original V4 diagrams are preserved below; V5 adds reporting and export sequence diagrams.

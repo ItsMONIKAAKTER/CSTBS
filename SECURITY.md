@@ -1,3 +1,15 @@
+# Security Notes — CSTBS v5.1
+
+- Initial administrator registration requires physical/terminal access in development. A random, time-limited key is printed once when no admin exists; production provisioning is explicit via `flask reset-bootstrap-key`.
+- Invites use `secrets.token_urlsafe` and HMAC-SHA256 keyed fingerprints, one-hour expiry, single-use transactional consumption, a no-store display, CSRF and per-IP request limits. **Do not disclose terminal output or invitation pages**.
+- `/admin/admin-invitations/new` and Student ID editing are role restricted. A forged registration `role`, student ID duplicate or client booking price is never trusted.
+- Existing Student IDs are unique, uppercase-normalized; admin reports containing PII must be protected as personal data. Avoid storing Student IDs in app logs or public screenshots.
+- University admissions are free (CNY ¥0.00). No payment processors, payment accounts, cards, or refund logic should be configured.
+
+---
+
+## Previous V5 security guidance
+
 # Security Policy — CSTBS v5.0
 
 CSTBS v5.0 is a learning/reference deployment with strong baseline web controls, not a payment or production-scale ticket platform. Review and test security against your institution's requirements before public access.

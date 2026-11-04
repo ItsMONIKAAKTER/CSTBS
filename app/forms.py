@@ -3,7 +3,6 @@
 from flask_wtf import FlaskForm
 from wtforms import (
     DateTimeLocalField,
-    DecimalField,
     IntegerField,
     SelectField,
     PasswordField,
@@ -36,8 +35,10 @@ class LoginForm(FlaskForm):
 
 
 class RegisterForm(FlaskForm):
-    """Register a new student account (never an admin account)."""
+    """Register a student; Student ID cannot be omitted or repeated."""
 
+    student_id = StringField("Student ID", validators=[DataRequired(), Length(min=6, max=20),
+        Regexp(r"^[A-Za-z0-9]{6,20}$", message="Use 6–20 letters or numbers (no spaces).")])
     full_name = StringField("Full name", validators=[DataRequired(), Length(min=2, max=120)])
     email = StringField("Email address", validators=EMAIL_VALIDATORS)
     password = PasswordField("Password", validators=[DataRequired(), Length(min=12, max=128)])
@@ -46,6 +47,25 @@ class RegisterForm(FlaskForm):
         validators=[DataRequired(), EqualTo("password", message="Passwords must match.")],
     )
     submit = SubmitField("Create account")
+
+
+class AdminRegisterForm(FlaskForm):
+    """Registration requires an unexpired invitation, checked in a transaction."""
+    full_name = StringField("Full name", validators=[DataRequired(), Length(min=2, max=120)])
+    email = StringField("University email", validators=EMAIL_VALIDATORS)
+    admin_key = PasswordField("One-time administrator registration key", validators=[
+        DataRequired(), Length(min=20, max=160)])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=12, max=128)])
+    confirm_password = PasswordField("Confirm password", validators=[DataRequired(),
+        EqualTo("password", message="Passwords must match.")])
+    submit = SubmitField("Register as administrator")
+
+
+class StudentIDForm(FlaskForm):
+    """Let legacy students and admins fill a missing/corrected student ID."""
+    student_id = StringField("Student ID", validators=[DataRequired(), Length(min=6, max=20),
+        Regexp(r"^[A-Za-z0-9]{6,20}$", message="Use 6–20 letters or numbers.")])
+    submit = SubmitField("Save Student ID")
 
 
 class EventForm(FlaskForm):
@@ -61,9 +81,6 @@ class EventForm(FlaskForm):
         "Starts at (campus local time)",
         format="%Y-%m-%dT%H:%M",
         validators=[InputRequired()],
-    )
-    price = DecimalField(
-        "Entry price (USD)", places=2, validators=[InputRequired(), NumberRange(min=0, max=100000)]
     )
     submit = SubmitField("Save event")
 
@@ -90,6 +107,11 @@ class RenameSectionForm(FlaskForm):
     new_name = StringField("New section name", validators=[DataRequired(), Length(min=2, max=30),
         Regexp(r"^[A-Za-z0-9][A-Za-z0-9 _-]*$")])
     submit = SubmitField("Rename section")
+
+
+class AdminInviteForm(FlaskForm):
+    """CSRF-protected administrator invitation creation."""
+    submit = SubmitField("Generate one-time admin key")
 
 
 class RoleForm(FlaskForm):

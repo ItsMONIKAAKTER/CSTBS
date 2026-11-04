@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Register{% endblock %}
+{% block title %}Student registration{% endblock %}
 {% block content %}
 <section class="auth-section">
     <div class="auth-card">
         <span class="section-kicker">JOIN THE CROWD</span>
-        <h1>Create an account</h1>
+        <h1>Create a student account</h1>
         <p class="auth-subtitle">Register your student account to join the CSTBS community.</p>
         <form method="post" novalidate>
             {{ form.hidden_tag() }}
@@ -20,8 +20,14 @@
                 {% for error in form.email.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
             </div>
             <div class="form-field">
+                {{ form.student_id.label }}
+                {{ form.student_id(class='form-control', placeholder='e.g. 2026001234', autocomplete='off', minlength='6', maxlength='20') }}
+                {% for error in form.student_id.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+                <p class="muted">Required · 6–20 letters or digits · Must be unique</p>
+            </div>
+            <div class="form-field">
                 {{ form.password.label }}
-                {{ form.password(class='form-control', placeholder='At least 8 characters', autocomplete='new-password') }}
+                {{ form.password(class='form-control', placeholder='At least 12 characters', autocomplete='new-password') }}
                 {% for error in form.password.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
             </div>
             <div class="form-field">
@@ -31,6 +37,7 @@
             </div>
             {{ form.submit(class='button button-primary button-full') }}
         </form>
+        <p class="auth-switch">Are you a university administrator? <a href="{{ url_for('main.register_admin') }}">Register with an admin key</a></p>
         <p class="auth-switch">Already registered? <a href="{{ url_for('main.login') }}">Sign in</a></p>
     </div>
 </section>

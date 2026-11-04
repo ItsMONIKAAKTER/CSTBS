@@ -1,3 +1,40 @@
+# Admin Manual — CSTBS v5.1
+
+## First administrator: no PyCharm/SQL user edits
+
+1. In development, run `python run.py` after configuring `.env` and initializing the DB.
+2. If no administrator exists, a random **single-use registration key** prints in the terminal. It expires after 60 minutes. Treat terminal output as a secret.
+3. Open `/register/admin`, enter your name, email, password and key. Your account gets the `admin` role only after the key is atomically consumed.
+4. If the initial key is lost or expires, and no admin exists, run `python -m flask --app run.py reset-bootstrap-key` in a trusted terminal. This invalidates previous unused bootstrap keys.
+5. In production, bootstrap must be done explicitly with the command above, not printed by web-worker startup.
+
+## Invite additional administrators from the website
+
+1. Sign in as admin, open **Admin dashboard → Users**.
+2. Select **Generate one-time admin key**. A CSRF-protected POST creates a new 60-minute invitation.
+3. Copy it from the single-use display and share privately with the intended staff member.
+4. That person uses `/register/admin` to create their own account. Each key supports one successful registration only.
+5. Do not save keys in the repository, email to public lists, or paste them into screenshots.
+
+## Manage student accounts
+
+- The **Users** table shows a Student ID input for each student. Assign or correct a 6–20-character unique ID and select **Save ID**.
+- Promote/demote roles with the adjacent form; the server rejects an attempt to turn an account lacking a Student ID into a student.
+- Admins cannot demote themselves; the last admin remains protected.
+- Existing V5 student records without IDs remain readable and can be completed by the owner at `/account`.
+
+## Events and free admissions
+
+Admin **Events** allows full CRUD, while the **Seats** screen manages sections and blocks. All events have **free admission (CNY ¥0.00)** and there is no price field. Reservations require no payment gateway or checkout credentials. Delete an event only if it has no booking history.
+
+## Bookings and reports
+
+Admins can view/filter/cancel all bookings, export PDF/CSV event and booking reports, and send cancellation emails via the configured Flask-Mail service. Exports show free admission (CNY 0.00), not revenue. Preserve student data privacy and download reports only to authorized devices.
+
+---
+
+## Previous V5 admin manual (archived context)
+
 # CSTBS v5.0 — Administrator Manual
 
 **Audience:** trusted campus administrators. All `/admin` routes require an authenticated `admin` account. A `staff` user can reserve seats but does not administer the system.
