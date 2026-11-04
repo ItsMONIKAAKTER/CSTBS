@@ -1,35 +1,34 @@
 {% extends 'base.html' %}
-{% block title %}My bookings{% endblock %}
+{% block title %}My tickets{% endblock %}
 {% block content %}
-<section class="page-heading container">
-  <span class="section-kicker">YOUR RESERVATIONS</span>
-  <h1>My <em>bookings.</em></h1>
-  <p>Manage your reserved seats and see cancelled reservation history.</p>
-</section>
+<section class="page-heading container animated-enter"><span class="section-kicker">CAMPUS ACCESS PASS</span>
+<h1>My <em>tickets.</em></h1><p>Each ticket belongs to one registered student. Show its QR code to stadium staff at entry.</p></section>
 <section class="container history-section">
-  {% if bookings %}
-  <div class="history-list">
-  {% for booking in bookings %}
-    <article class="history-card">
-      <div class="history-main">
-        <span class="history-state {% if booking.status == 'reserved' %}is-active{% else %}is-cancelled{% endif %}">{{ booking.status|capitalize }}</span>
-        <h2><a href="{{ url_for('main.event_detail', event_id=booking.event.id) }}">{{ booking.event.title }}</a></h2>
-        <p>{{ booking.event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ booking.event.venue }}</p>
-        <p>Seat <strong>{{ booking.seat.label }}</strong> · Section {{ booking.seat.section }} · <strong>Free admission · ¥0.00</strong></p>
-        <small>Booking #{{ booking.id }} · {{ booking.created_at.strftime('%b %d, %Y') }}</small>
-      </div>
-      {% if booking.status == 'reserved' %}
-      <form method="post" action="{{ url_for('main.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this seat reservation?">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="button button-danger button-small">Cancel booking</button>
-      </form>
-      {% endif %}
-    </article>
-  {% endfor %}
-  </div>
-  {% else %}
-    <div class="empty-state"><h2>No bookings yet</h2><p>Explore an upcoming event to reserve your first seat.</p>
-    <a class="button button-primary" href="{{ url_for('main.events') }}">Browse events</a></div>
-  {% endif %}
+{% if bookings %}<div class="history-list">
+{% for booking in bookings %}
+<article class="history-card glass-panel">
+<div class="history-main">
+  <span class="history-state {{ 'is-active' if booking.status == 'reserved' else 'is-cancelled' }}">{{ booking.ticket.status|replace('_', ' ')|capitalize if booking.ticket else booking.status|capitalize }}</span>
+  <h2><a href="{{ url_for('main.event_detail', event_id=booking.event.id) }}">{{ booking.event.title }}</a></h2>
+  <p>{{ booking.event.starts_at.strftime('%b %d, %Y · %I:%M %p') }} · {{ booking.event.venue }}</p>
+  <p>Seat <strong>{{ booking.seat.display_label }}</strong> · <strong>Free admission</strong></p>
+  {% if booking.ticket %}<p><strong>Attendee:</strong> {{ booking.ticket.attendee_name }}{% if booking.ticket.attendee_student_id %} · {{ booking.ticket.attendee_student_id }}{% endif %}</p>{% endif %}
+  <small>Booking #{{ booking.id }} · {{ booking.created_at.strftime('%b %d, %Y') }}</small>
+</div>
+<div class="ticket-actions">
+ {% if booking.ticket and booking.ticket.status in ['active', 'checked_in'] and booking.status == 'reserved' %}
+   <a class="button button-primary button-small" href="{{ url_for('entry.ticket_detail', ticket_id=booking.ticket.id) }}">View QR ticket</a>
+ {% elif booking.ticket and booking.ticket.status == 'unassigned' %}
+   <p class="muted">Legacy ticket needs attendee verification by an admin.</p>
+ {% endif %}
+ {% if booking.status == 'reserved' and (not booking.ticket or booking.ticket.status != 'checked_in') %}
+ <form method="post" action="{{ url_for('main.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this ticket reservation?">
+ <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="button button-danger button-small">Cancel</button></form>
+ {% endif %}
+</div>
+</article>
+{% endfor %}</div>
+{% else %}<div class="empty-state"><h2>No tickets yet</h2><p>Find a university event and select a seat to begin.</p>
+<a class="button button-primary" href="{{ url_for('main.events') }}">Browse events</a></div>{% endif %}
 </section>
 {% endblock %}

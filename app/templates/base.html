@@ -26,6 +26,7 @@
                     {% if current_user.is_admin %}
                         <a href="{{ url_for('admin.dashboard') }}" {% if request.endpoint and (request.endpoint.startswith('main.admin_') or request.endpoint.startswith('admin.')) %}aria-current="page"{% endif %}>Admin dashboard</a>
                     {% endif %}
+                    {% if current_user.role in ['staff', 'admin'] %}<a href="{{ url_for('entry.scan') }}">QR gate</a>{% endif %}
                     <a href="{{ url_for('main.booking_history') }}" {% if request.endpoint == 'main.booking_history' %}aria-current="page"{% endif %}>My bookings</a>
                     <a href="{{ url_for('main.account') }}" {% if request.endpoint == 'main.account' %}aria-current="page"{% endif %}>My account</a>
                     <form class="logout-form" action="{{ url_for('main.logout') }}" method="post">
@@ -38,6 +39,7 @@
                     <a href="{{ url_for('main.admin_login') }}" {% if request.endpoint == 'main.admin_login' %}aria-current="page"{% endif %}>Admin login</a>
                 {% endif %}
             </div>
+            <button class="theme-toggle" type="button" aria-label="Switch between day and night theme" aria-pressed="false" title="Toggle theme">☾</button>
         </nav>
     </header>
     <main id="main-content">
@@ -51,7 +53,7 @@
     <footer class="site-footer">
         <div class="container footer-inner">
             <div><strong>CSTBS</strong><p>Campus Stadium Ticket Booking System</p></div>
-            <span>Version 5.2 · University reservations · Free admission</span>
+            <span>Version 5.3 · Smart campus ticketing · Free admission</span>
         </div>
     </footer>
 </body>

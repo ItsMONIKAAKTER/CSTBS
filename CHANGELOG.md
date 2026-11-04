@@ -1,35 +1,42 @@
-# CSTBS CHANGELOG
+# CSTBS Changelog
 
-## v5.2 — Simplified Administrator Login (2026-11-01)
+## v5.3 — Smart University Stadium Ticketing (2026-11-03)
+
+### Added
+- **Administrator activation and normal password login:** first-time admins use a hashed, email-bound 20-minute single-use activation/recovery key to set a password. Future logins require only email and password. Admin password resets invalidate old sessions. Additional administrators can be approved and invited through the admin dashboard; public admin registration stays disabled.
+- **Group student reservations:** the first reserved seat belongs to the booking student; every additional ticket requires another registered student's matching full name and Student ID. A SQLite partial unique index enforces one active/checked-in ticket per student/event. Reservations and tickets are committed in one transaction.
+- **Individual signed QR tickets:** a ticket for each attendee with a server-verified, persistent-key signature that exposes no student details. Mobile-friendly staff gate scanner (browser BarcodeDetector with native-phone-camera/manual fallback); identity verification; explicit POST check-in with CSRF; duplicate/invalid/cancelled/used ticket rejection.
+- **Gate operations:** admin-managed booking/gate open/close, staff-only attendance overview and scanning, confidential attendance PDF and CSV exports, ability to assign verified attendees to unassigned legacy reservations.
+- **Modern UI:** Campus Light / Stadium Night switcher, smooth entrance and interaction animations, reduced-motion support, responsive QR card and gate views.
+- **GitHub-safe workflow:** read-only GitHub Actions CI, private secrets/DB exclusions, health endpoint, SQLite backup CLI and automatic integrity-checked pre-V5.3 upgrade snapshots, idempotent legacy migration and tests.
 
 ### Changed
-- Removed public administrator registration. The old GET `/register/admin` redirects to `/admin/login`; POST registration is not available.
-- A first-run local terminal prompt provisions the first administrator and prints their one-time access key (no editing source, `.env`, Notepad or database).
-- Existing admins sign in using their **email + 20-minute, one-time access key**; successful login redirects to `/admin/`. Admin password login is disabled.
-- Existing admin roles and bookings preserved; V5.1 unbound registration tokens invalidated during schema update.
-- Admin Dashboard > Users generates a targeted key only for existing admin accounts. A trusted admin may first promote a user.
-- Added interactive CLI `flask admin-setup` and `flask admin-key EMAIL` for setup/recovery.
-- Local development auto-generates a stable private Flask secret in `instance/` if not configured. Production requires explicit secure settings.
+- V5.2 one-time admin *login* keys are now one-time **activation or recovery** keys, with future admin logins using passwords.
+- V5.2 multi-seat bookings are preserved. Extra seats for the same student become explicitly **unassigned** QR tickets until an administrator verifies another registered attendee; no booking rows are silently removed.
+- Reservation cancellation invalidates QR tickets and retains history; checked-in tickets cannot be cancelled by normal controls.
+- Booking confirmations remain free: `¥0.00` RMB/CNY with no payment gateway.
 
-### Added security and quality
-- Email-bound tokens, hashed token fingerprints, single use and time-based expiry; new token revokes prior unused tokens for that admin.
-- New admin login form and tests for replay, expiration, wrong email, invalid roles, CSRF, admin access and booking regression.
-- Updated Windows setup, manuals, diagrams and GitHub release notes.
+### Verification scope
+- Static compilation/template/JavaScript/SQLite integrity checks provided. Full Flask route integration and production concurrency/load tests must pass in a dependency-enabled environment before deployment.
+
+## v5.2 — Simplified Administrator Login (2026-11-01)
+- Removed public admin registration; implemented terminal-generated email-bound, expiring, one-use administrator **login** keys (replaced by activation-only flow in V5.3).
+- Protected student ID registration and preserved bookings; local development secret generation without Notepad edits.
 
 ## v5.1 — University Accounts & Free Reservations
-- Unique mandatory Student IDs, one-time administrator registration invitations (replaced by V5.2), free campus admission, RMB display.
+- Mandatory unique Student IDs, separate administrator invitation registration (retired in V5.2), university-specific free admission, RMB display.
 
-## v5.0 — Final Reporting, Security & Documentation
-- PDF and CSV admin exports, rate limiting, security headers, complete manuals and demo improvements.
+## v5.0 — Reports, Security & Documentation
+- Admin booking/event PDF and CSV exports, rate limits, security headers, test workflow, user/admin/deployment manuals.
 
 ## v4.0 — Administration
-- Dashboard, seat/section blocking, user role and all-booking management, booking email notifications.
+- Admin dashboard, event CRUD, seat section/blocking, user roles, bookings oversight and booking email notifications.
 
 ## v3.0 — Seat Reservations
-- Interactive seats, availability polling, booking checkout/history/cancellation, conflict prevention.
+- Live seat-map polling, multi-seat checkout, booking cancellation/history, SQLite active-seat conflict protection.
 
-## v2.0 — Accounts & Events
-- Flask-Login authentication, Werkzeug password hashes, student/staff/admin roles, admin event CRUD.
+## v2.0 — Accounts and Events
+- Flask-Login, Werkzeug password hashes, student/staff/admin roles, admin event CRUD and sample events.
 
-## v1.0 — Initial Prototype
-- Requirements, UML/database design, responsive pages, event catalog and initial models.
+## v1.0 — Foundation and Prototype
+- Requirements analysis, PlantUML, SQLite models, responsive public event catalog and student account UI.

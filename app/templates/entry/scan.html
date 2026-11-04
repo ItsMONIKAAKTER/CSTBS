@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Stadium QR scanner{% endblock %}
+{% block content %}
+<section class="page-heading container animated-enter"><span class="section-kicker">STADIUM GATE / STAFF</span>
+<h1>Scan a <em>ticket.</em></h1><p>Use your phone camera over HTTPS or localhost, or paste the QR link below. Scanning never grants entry automatically.</p></section>
+<section class="container gate-grid"><article class="admin-panel glass-panel">
+<h2>Camera scanner</h2><video class="scanner-video" id="gate-video" playsinline muted aria-label="Camera preview for QR scanning"></video>
+<p id="scanner-status" class="muted" role="status">Camera is off.</p>
+<div class="confirm-actions"><button type="button" class="button button-primary" id="start-scanner">Start camera</button>
+<button type="button" class="button button-secondary" id="stop-scanner">Stop camera</button></div>
+<p class="muted">If your browser does not support direct QR scanning, open the ticket QR with the phone's camera app and sign in as staff to verify it.</p>
+</article><article class="admin-panel glass-panel"><h2>Manual verification</h2>
+<form method="get" action="{{ url_for('entry.scan') }}">
+<label for="scanned-code">Paste ticket URL or code</label>
+<input class="form-control" id="scanned-code" name="code" maxlength="1000" required placeholder="https://.../entry/verify/...">
+<button class="button button-primary button-full" type="submit">Verify ticket</button></form>
+<p class="muted">After verification, confirm entry separately. A second scan of the same ticket will be rejected.</p></article></section>
+<script src="{{ url_for('static', filename='js/scanner.js') }}" defer></script>
+{% endblock %}

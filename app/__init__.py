@@ -49,6 +49,8 @@ def create_app(test_config=None):
             raise RuntimeError("Production SECRET_KEY must contain at least 32 characters.")
         if not app.config.get("SESSION_COOKIE_SECURE"):
             raise RuntimeError("Production sessions must use HTTPS-only cookies.")
+        if not app.config.get("TICKET_SIGNING_KEY") or len(app.config["TICKET_SIGNING_KEY"]) < 32:
+            raise RuntimeError("Set a persistent TICKET_SIGNING_KEY for production QR validity.")
         if not app.config.get("TRUSTED_HOSTS"):
             raise RuntimeError("Set TRUSTED_HOSTS before production deployment.")
         if app.config.get("RATELIMIT_STORAGE_URI", "memory://") == "memory://":
@@ -70,8 +72,8 @@ def create_app(test_config=None):
         """Security headers for dynamic HTML and downloads; no inline scripts."""
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
@@ -83,17 +85,29 @@ def create_app(test_config=None):
     login_manager.login_view = "main.login"
     login_manager.login_message_category = "info"
 
+    @app.before_request
+    def invalidate_old_admin_sessions():
+        """Revoke admin sessions after password activation/reset or role change."""
+        from flask_login import current_user, logout_user
+        from flask import session
+        if current_user.is_authenticated and current_user.role == "admin":
+            if (not current_user.password_ready or
+                    session.get("admin_auth_version") != current_user.auth_version):
+                logout_user()
+                session.pop("admin_auth_version", None)
+
     @login_manager.unauthorized_handler
     def login_required_handler():
-        """Send anonymous admin visitors to the correct, key-only login page."""
+        """Send anonymous visitors to role-appropriate login pages."""
         if request.path.startswith("/admin/"):
             return redirect(url_for("main.admin_login"))
         return redirect(url_for("main.login", next=request.full_path))
 
-    from .models import User, AdminInvitation  # Register all SQLAlchemy models.
+    from .models import User, AdminInvitation, Ticket  # Register all SQLAlchemy models.
     from .routes import main
     from .admin import admin
     from .reports import reports
+    from .entry import entry
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -106,6 +120,16 @@ def create_app(test_config=None):
     app.register_blueprint(main)
     app.register_blueprint(admin)
     app.register_blueprint(reports)
+    app.register_blueprint(entry)
+
+    @app.get("/health")
+    def health():
+        from flask import jsonify
+        try:
+            db.session.execute(select(1)).scalar_one()
+        except Exception:
+            return jsonify(status="unavailable"), 503
+        return jsonify(status="ok", version="5.3")
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(_error):
@@ -146,12 +170,17 @@ def create_app(test_config=None):
         from .seating import backfill_empty_event_seats
         from .migrations_v51 import upgrade_v51
         from .migrations_v52 import upgrade_v52
+        from .migrations_v53 import upgrade_v53
+        from .backups import sqlite_backup
+        # Backup legacy V5.2 DB before any schema changes, or abort on failure.
+        sqlite_backup(version_guard=True) if db.engine.dialect.name == "sqlite" else None
         db.create_all()
         upgrade_v1_user_schema()
         upgrade_v2_booking_constraints()
         upgrade_v3_seat_blocking()
         upgrade_v51()
         upgrade_v52()
+        upgrade_v53()
         backfill_empty_event_seats()
 
     if app.config.get("APP_ENV") != "production":
@@ -163,6 +192,16 @@ def create_app(test_config=None):
         """Explicit database initialization for deployment and fresh installs."""
         initialize_schema()
         click.echo("Database schema initialized. Check backup/migration requirements.")
+
+    @app.cli.command("backup-db")
+    def backup_db_command():
+        """Consistent SQLite backup under private instance/backups folder."""
+        from .backups import sqlite_backup
+        try:
+            result = sqlite_backup()
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo(str(result) if result else "No on-disk SQLite DB to back up.")
 
     @app.cli.command("seed-events")
     def seed_events_command():
@@ -194,10 +233,21 @@ def create_app(test_config=None):
             raise click.ClickException(str(exc)) from exc
         print_terminal_login_key(user, bootstrap=True)
 
+    @app.cli.command("admin-reset")
+    @click.argument("email")
+    def admin_reset_command(email):
+        """Revoke an admin password and issue a 20-minute recovery key."""
+        from .admin_keys import normalize_email, print_terminal_login_key
+        normalized = normalize_email(email)
+        user = db.session.scalar(select(User).where(User.email == normalized, User.role == "admin"))
+        if user is None:
+            raise click.ClickException("No administrator with that email.")
+        print_terminal_login_key(user)
+
     @app.cli.command("admin-key")
     @click.argument("email")
     def admin_key_command(email):
-        """Issue a new 20-minute login key to an existing admin in this terminal."""
+        """Issue an activation key to an admin who has no active password."""
         from .admin_keys import normalize_email, print_terminal_login_key
         try:
             normalized = normalize_email(email)
@@ -208,13 +258,15 @@ def create_app(test_config=None):
         if user is None:
             raise click.ClickException("No admin with that email. Use admin-setup first, "
                                        "or promote a user in Admin > Users.")
+        if user.password_ready:
+            raise click.ClickException("Already activated. Use admin-reset EMAIL only if you need to revoke its password.")
         print_terminal_login_key(user)
 
     @app.cli.command("reset-bootstrap-key")
     def legacy_key_command():
         """Guide users of V5.1 to the new explicit admin key workflow."""
-        raise click.ClickException("V5.2 uses admin-key EMAIL (existing admin), "
-                                   "or admin-setup (first admin).")
+        raise click.ClickException("V5.3 uses admin-key EMAIL (pending activation), "
+                                   "admin-reset EMAIL (password recovery), or admin-setup.")
 
     @app.cli.command("set-role")
     @click.argument("email")
@@ -231,8 +283,15 @@ def create_app(test_config=None):
                 raise click.ClickException("Cannot demote the last administrator.")
         if role == "student" and not user.student_id:
             raise click.ClickException("A student needs a unique Student ID first.")
+        if role == "admin" and user.role != "admin":
+            import secrets
+            user.set_password(secrets.token_urlsafe(48))
+            user.password_ready = False
         user.role = role
+        user.auth_version = (user.auth_version or 0) + 1
         db.session.commit()
         click.echo(f"Updated {normalized_email} to role: {role}")
+        if role == "admin" and not user.password_ready:
+            click.echo("Next: generate a 20-minute activation key with admin-key EMAIL.")
 
     return app

@@ -20,12 +20,21 @@
     </form>
     <p class="admin-help">{{ page.total }} matching reservation(s), newest first.</p>
     {% if bookings %}<div class="table-scroll"><table class="admin-table">
-      <thead><tr><th>Booking</th><th>Owner</th><th>Event / Seat</th><th>Price</th><th>Status</th><th>Action</th></tr></thead>
+      <thead><tr><th>Booking</th><th>Owner</th><th>Event / Seat</th><th>Attendee / ticket</th><th>Status</th><th>Action</th></tr></thead>
       <tbody>{% for booking in bookings %}<tr>
         <td>#{{ booking.id }}<small>{{ booking.created_at.strftime('%b %d, %Y') }}</small></td>
         <td><strong>{{ booking.user.full_name }}</strong><small>{{ booking.user.email }}</small></td>
         <td>{{ booking.event.title }}<small>{{ booking.seat.display_label }}</small></td>
-        <td>¥0.00</td>
+        <td>{% if booking.ticket %}<strong>{{ booking.ticket.attendee_name }}</strong>
+         <small>{{ booking.ticket.attendee_student_id or 'Verify attendee' }} · {{ booking.ticket.status|replace('_', ' ') }}</small>
+         {% if booking.ticket.status in ['active','checked_in'] %}<a class="text-link" href="{{ url_for('entry.ticket_detail', ticket_id=booking.ticket.id) }}">QR ticket</a>{% endif %}
+         {% if booking.ticket.status == 'unassigned' %}<form method="post" action="{{ url_for('admin.assign_legacy_ticket', ticket_id=booking.ticket.id) }}" class="attendee-assign-form">
+           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+           <input class="form-control" name="student_name" required maxlength="120" placeholder="Registered full name">
+           <input class="form-control" name="student_id" required minlength="6" maxlength="20" placeholder="Student ID">
+           <button type="submit" class="button button-secondary button-small">Assign attendee</button>
+         </form>{% endif %}
+        {% else %}<span class="muted">No ticket yet</span>{% endif %}</td>
         <td><span class="history-state {{ 'is-active' if booking.status == 'reserved' else 'is-cancelled' }}">{{ booking.status|capitalize }}</span></td>
         <td>{% if booking.status == 'reserved' %}<form method="post" action="{{ url_for('admin.cancel_booking', booking_id=booking.id) }}" data-confirm="Cancel this user's booking?">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button type="submit" class="button button-danger button-small">Cancel</button>

@@ -1,11 +1,14 @@
-name: CSTBS Python tests
+name: CSTBS v5.3 CI
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12']
     steps:
@@ -13,9 +16,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install requirements
-        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
-      - name: Run application tests
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip check
+      - name: Flask integration tests (isolated SQLite)
         run: python -m unittest discover -s tests -v
       - name: Compile Python files
         run: python -m compileall -q app config.py run.py tests
+      - name: Check JavaScript syntax
+        run: |
+          node --check app/static/js/main.js
+          node --check app/static/js/seats.js
+          node --check app/static/js/scanner.js
+# Deliberately no deploy job: a push never writes to a running university database.

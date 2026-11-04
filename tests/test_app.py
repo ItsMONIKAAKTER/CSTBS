@@ -68,10 +68,9 @@ class CSTBSTests(unittest.TestCase):
     def sign_in(self, email, next_path=""):
         user = db.session.scalar(select(User).where(User.email == email))
         if user and user.role == "admin":
-            key = issue_login_key(user)
             return self.client.post("/admin/login", data={
                 "csrf_token": self.csrf("/admin/login"),
-                "email": email, "admin_key": key}, follow_redirects=True)
+                "email": email, "password": "StrongPass123"}, follow_redirects=True)
         path = "/login" + ("?next=" + next_path if next_path else "")
         return self.client.post(path, data={
             "csrf_token": self.csrf(path), "email": email,

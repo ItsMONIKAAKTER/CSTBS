@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Stadium attendance{% endblock %}
+{% block content %}
+<section class="page-heading container animated-enter"><span class="section-kicker">OPERATIONS / GATE CONTROL</span>
+<h1>Stadium <em>entry.</em></h1><p>Attendance tracking for authorized admins and gate staff.</p></section>
+<section class="container admin-section">{% if current_user.is_admin %}{% include 'admin/_nav.html' %}{% endif %}
+<div class="admin-panel glass-panel"><h2>Gate check-in summary</h2><div class="table-scroll"><table class="admin-table">
+<thead><tr><th>Event</th><th>Gate status</th><th>Checked in</th><th>Action</th></tr></thead><tbody>
+{% for event, checked_in in counts %}<tr><td>{{ event.title }}</td><td>{{ 'Open' if event.checkin_enabled else 'Closed' }}</td>
+<td><strong>{{ checked_in }}</strong></td><td><a class="button button-secondary button-small" href="{{ url_for('entry.scan') }}">Scan tickets</a></td></tr>{% endfor %}
+</tbody></table></div></div></section>
+{% endblock %}

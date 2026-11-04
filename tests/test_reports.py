@@ -58,7 +58,7 @@ class ReportTests(unittest.TestCase):
         self.assertIsNotNone(match)
         payload = {"csrf_token": match.group(1).decode(), "email": email}
         if is_admin:
-            payload["admin_key"] = issue_login_key(user)
+            payload["password"] = "StrongPass123"
         else:
             payload["password"] = "StrongPass123"
         result = self.client.post(route, data=payload)

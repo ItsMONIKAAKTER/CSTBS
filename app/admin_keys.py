@@ -1,4 +1,4 @@
-"""20-minute, one-time administrator login keys.
+"""20-minute, one-time administrator activation and recovery keys.
 
 A key is bound to one existing admin account; no public admin registration or
 implicit privilege escalation. Only HMAC fingerprints are stored in SQLite.
@@ -34,7 +34,7 @@ def _fingerprint(key):
 
 
 def issue_login_key(admin_user, *, created_by=None, minutes=KEY_MINUTES, bootstrap=False):
-    """Issue a key for an existing admin, invalidating their earlier unused keys."""
+    """Issue a password-activation/reset key; revoke existing password sessions."""
     if admin_user is None or admin_user.id is None or admin_user.role != "admin":
         raise ValueError("Keys can be issued only to existing administrators.")
     if not 1 <= minutes <= 20:
@@ -44,6 +44,9 @@ def issue_login_key(admin_user, *, created_by=None, minutes=KEY_MINUTES, bootstr
         AdminInvitation.target_user_id == admin_user.id,
         AdminInvitation.used_at.is_(None)
     ).values(used_at=now))
+    # Issuing a key revokes password sessions until activation finishes.
+    admin_user.password_ready = False
+    admin_user.auth_version = (admin_user.auth_version or 0) + 1
     key = "CSTBS-" + secrets.token_urlsafe(24)
     row = AdminInvitation(
         token_hash=_fingerprint(key), bootstrap=bootstrap,
@@ -54,10 +57,10 @@ def issue_login_key(admin_user, *, created_by=None, minutes=KEY_MINUTES, bootstr
     return key
 
 
-def consume_login_key(email, key):
+def consume_login_key(email, key, new_password=None):
     """Atomically redeem a still-valid key for its exact admin email.
 
-    Caller commits immediately before establishing a login session.
+    Password and used_at are committed atomically before login.
     Never creates users or changes roles.
     """
     try:
@@ -89,6 +92,10 @@ def consume_login_key(email, key):
     if claimed.rowcount != 1:
         db.session.rollback()
         return None
+    if not isinstance(new_password, str) or not 12 <= len(new_password) <= 128:
+        db.session.rollback()
+        return None
+    user.set_password(new_password)
     db.session.commit()
     return user
 
@@ -104,8 +111,9 @@ def provision_first_admin(email, full_name="University Administrator"):
     if not 2 <= len(name) <= 120:
         raise ValueError("Name must be 2 to 120 characters.")
     user = User(full_name=name, email=email, role="admin")
-    # No password is displayed or required for admin key-only login.
+    # Give an unusable random hash until the admin activates with a key.
     user.set_password(secrets.token_urlsafe(48))
+    user.password_ready = False  # One-time activation sets the real password.
     db.session.add(user)
     db.session.commit()
     return user
@@ -114,11 +122,11 @@ def provision_first_admin(email, full_name="University Administrator"):
 def print_terminal_login_key(user, *, bootstrap=False):
     key = issue_login_key(user, bootstrap=bootstrap)
     print("\n" + "=" * 66 + "\n"
-          "CSTBS ADMIN LOGIN KEY - LOCAL TERMINAL\n"
+          "CSTBS ADMIN ACTIVATION KEY - LOCAL TERMINAL\n"
           f"Administrator: {user.email}\n"
           f"ONE-TIME KEY: {key}\n"
-          "Valid: 20 minutes | One login only\n"
-          "Open: http://127.0.0.1:5000/admin/login\n"
+          "Valid: 20 minutes | One activation only\n"
+          "Open: http://127.0.0.1:5000/admin/activate\n"
           "This key is already stored securely. Do not edit any file.\n"
           "If it expires: python -m flask --app run.py admin-key EMAIL\n"
           + "=" * 66 + "\n", flush=True)

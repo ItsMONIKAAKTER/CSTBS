@@ -27,9 +27,9 @@ class ReservationTests(unittest.TestCase):
         self.ctx.push()
         self.client = self.app.test_client()
         self.other_client = self.app.test_client()
-        self.user = User(full_name="Student One", email="one@example.edu", role="student")
+        self.user = User(full_name="Student One", email="one@example.edu", student_id="STU00001", role="student")
         self.user.set_password("SecurePassword123")
-        self.other = User(full_name="Student Two", email="two@example.edu", role="student")
+        self.other = User(full_name="Student Two", email="two@example.edu", student_id="STU00002", role="student")
         self.other.set_password("SecurePassword123")
         event = Event(title="Campus Test Derby", category="Football", description="A great game.",
                       venue="Main Stadium", starts_at=datetime.now() + timedelta(days=5),
@@ -67,10 +67,12 @@ class ReservationTests(unittest.TestCase):
             "csrf_token": self.csrf(client, path), "seat_ids": ",".join(map(str, ids))
         })
 
-    def confirm(self, client):
-        return client.post(f"/events/{self.event_id}/booking/confirm", data={
-            "csrf_token": self.csrf(client, f"/events/{self.event_id}/seats")
-        })
+    def confirm(self, client, attendee_ids=None, attendee_names=None):
+        data = {"csrf_token": self.csrf(client, f"/events/{self.event_id}/seats")}
+        if attendee_ids is not None:
+            data["attendee_student_id"] = attendee_ids
+            data["attendee_name"] = attendee_names
+        return client.post(f"/events/{self.event_id}/booking/confirm", data=data)
 
     def test_seat_map_protected_and_api_public(self):
         self.assertEqual(self.client.get(f"/events/{self.event_id}/seats").status_code, 302)
@@ -87,7 +89,7 @@ class ReservationTests(unittest.TestCase):
         review = self.review(self.client, self.ids[:2])
         self.assertEqual(review.status_code, 200)
         self.assertIn("¥0.00".encode(), review.data)
-        result = self.confirm(self.client)
+        result = self.confirm(self.client, ["STU00001", "STU00002"], ["Student One", "Student Two"])
         self.assertEqual(result.status_code, 302)
         self.assertEqual(db.session.scalar(select(func.count(Booking.id))), 2)
         history = self.client.get("/bookings")
@@ -168,7 +170,9 @@ class ReservationTests(unittest.TestCase):
         admin = User(full_name="Admin", email="admin@example.edu", role="admin")
         admin.set_password("SecurePassword123")
         db.session.add(admin); db.session.commit()
-        self.login(self.client, "admin@example.edu")
+        self.client.post("/admin/login", data={
+            "csrf_token": self.csrf(self.client, "/admin/login"),
+            "email": "admin@example.edu", "password": "SecurePassword123"})
         token = self.csrf(self.client, "/admin/events/new")
         response = self.client.post("/admin/events/new", data={
             "csrf_token": token, "title": "New Match", "category": "Sports",

@@ -1,22 +1,28 @@
-# CSTBS v5.2 — Simplified Administrator Login
+# CSTBS v5.3 — Smart University Stadium Ticketing
 
-Campus Stadium Ticket Booking System (CSTBS) is a Flask/SQLite university event booking website, with **free reservations**, student ID registration, protected administrative tools, and PDF/CSV reporting. Student-facing prices, where shown, are **¥0.00 RMB/CNY**. **No payment gateway.**
+A Flask-based university stadium event system. Students can reserve **free** assigned seats for themselves and verified classmates, receive one signed QR admission pass per attendee, and enter through an authorized staff gate check-in. Administrators manage events, seat sections, bookings, users, gate operations and private PDF/CSV reports.
 
-## V5.2: no admin registration or Notepad key editing
+**Release:** `v5.3` · **Python:** 3.10+ · **Database:** SQLite · **Admission:** ¥0.00 CNY / no payment gateway
 
-- **Students:** Register at `/register` with full name, university email, mandatory **unique Student ID (6–20 letters/digits)** and password. Then log in using email/password.
-- **Administrators:** There is **no admin registration form**. They log in at `/admin/login` with their **existing admin email** and a **single-use 20-minute key**.
-- **First-run setup:** `python run.py` on a local interactive Windows PowerShell terminal asks for the first admin email/name **only if none exists**, creates the admin account and prints the login key in that terminal. No code, `.env`, Notepad or SQLite edits are needed.
-- **Later logins:** Starting `python run.py` generates a fresh key for the only administrator, or asks which existing administrator needs a key if there are multiple. Keys are bound to one admin email; creating a new key invalidates older unused keys for that account.
-- **If a key expires:** Open another PowerShell in the same project folder and run `python -m flask --app run.py admin-key admin@university.edu`. Copy the newly printed key into the website. Nothing goes into a configuration file.
-- **Additional administrators:** An existing admin can promote a trusted user under `/admin/users`, then click **Generate login key** for that account. The key appears once on a no-cache page. A logged-out admin can also generate their own key in the local terminal.
-- **Existing V5.1 administrators:** Their accounts/roles are preserved. Use their existing email with a newly generated one-time key. The old registration keys are invalidated by the schema update; password-based admin login is disabled in v5.2.
-- **Secret key for local development:** If `SECRET_KEY` is not configured, CSTBS automatically creates a stable, private `instance/.local_secret_key` (ignored by Git) so a fresh installation requires **no `.env` editing at all**. Production **requires** a configured secure `SECRET_KEY`.
+## Features
 
-## Windows PowerShell - first run
+| Audience | Features |
+|---|---|
+| Public | Animated responsive home, events and details; day/night theme switcher |
+| Students | Register with unique Student ID (6–20 alphanumeric); login, account, personal booking history |
+| Booking | Interactive seat map; five-second availability polling; select up to six seats per checkout; match each attendee's existing student account; first seat for the booker; one live ticket per student per event; atomic seat and ticket creation |
+| Tickets | Individual non-personal signed QR references; printable on-screen ticket; cancelled/used/unknown tickets rejected |
+| Staff | Mobile-friendly camera scan (where `BarcodeDetector` is supported), camera-app / manual QR fallback, separate verified one-use check-in, attendance overview |
+| Admin | First admin provisioned locally via a one-time 20-minute activation key; **normal email/password login thereafter**; dashboard, event CRUD, booking/gate open/close, sections and seat blocking, roles, attendee correction for legacy bookings, bookings, ticket/cancellation oversight, attendance, PDF/CSV exports |
+| Security | Password hashing, Flask-Login, role authorization, CSRF, rate limiting, private ticket images, safe CSV exports, unique-ticket/seat constraints, SQLite foreign keys, session revocation on admin reset |
+| Developer | V5.2-compatible SQLite migration with automatic pre-upgrade backup, private `.env`/DB, GitHub Actions CI, health endpoint, integration test suite |
 
-1. Extract `CSTBS-v5.2.zip`. Open PowerShell inside `CSTBS-v5.2`.
-2. Install Python 3.10+, then:
+**Limitations:** `BarcodeDetector` is not supported by all browsers; a phone's native camera or manual QR link can be used. No payment, refunds or QR sharing feature. A ticket is assigned only to a registered student who supplies matching Student ID and full name. Obtaining permission from classmates and verifying their physical university ID are operational requirements. Time displayed follows your configured campus/server timezone; production should standardize and document timezone policy.
+
+## Windows PowerShell: First run
+
+1. Install Python 3.10+ and extract the ZIP into `CSTBS-v5.3`.
+2. Open PowerShell **inside that folder** and run:
 
 ```powershell
 python -m venv .venv
@@ -27,62 +33,81 @@ python -m flask --app run.py seed-events
 python run.py
 ```
 
-PowerShell may block activation; run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` once in that PowerShell session if needed. A `.env` file is **optional** for local demo defaults. You do not need Notepad for login keys or application secrets in development.
+If activation is blocked: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then activate again.
 
-When prompted, enter the first administrator email and name. Copy the 20-minute key from PowerShell and open **http://127.0.0.1:5000/admin/login**. Enter **the same email** and the key. You will go straight to the admin dashboard after login. **The key's expiry does not end an established login session.**
+3. On the first **interactive local** server start, if no admin exists, enter admin email and name at the terminal prompt. A **20-minute, single-use activation key** appears once. **Do not put it into Notepad, `.env` or Python source.**
+4. Open `http://127.0.0.1:5000/admin/activate`, enter the admin email, activation key and a new password (12–128 characters). After success you reach the dashboard.
+5. **Future logins:** `http://127.0.0.1:5000/admin/login` → email and password; no key needed.
+6. Students register at `/register` with their Student ID, name, email and password, then use `/login`.
 
-To regenerate (without restarting the web server):
+Development automatically generates a stable private `instance/.local_secret_key` if you have not set `SECRET_KEY`; it is ignored by Git. A `.env` file is therefore optional for the local demonstration. Never overwrite this secret on an existing installation: the QR signing key falls back to it in development.
+
+### If the admin activation key expires
 
 ```powershell
-# Run in a second PowerShell window in CSTBS-v5.2, with .venv activated
+# Second PowerShell window, with .venv active
 python -m flask --app run.py admin-key admin@university.edu
 ```
 
-For a noninteractive terminal or initial setup that was skipped:
+This is only for administrators **not yet activated**. To deliberately recover/reset an **already activated** administrator account (revokes its password/session), a trusted local operator runs:
 
 ```powershell
-python -m flask --app run.py admin-setup
+python -m flask --app run.py admin-reset admin@university.edu
 ```
 
-The first command prompts for an email and name and prints a new key. After a valid admin account exists, use `admin-key EMAIL` instead.
+Admin users can promote another account through **Admin → Users**, then issue an activation key there. Existing active admin passwords can only be reset after an explicit confirmation. No admin registration endpoint exists.
 
-## Features retained from V1-V5.1
+### Optional demonstration dataset
 
-| Feature | Access |
-|---|---|
-| Public home, event list and details | Everyone |
-| Student registration with Student ID, login, account profile | Students |
-| Responsive seat map, reservation (1–6 seats), live availability polling | Signed-in users |
-| Cancel own booking; personal booking history | Signed-in users |
-| Admin dashboard; event CRUD; sections, blocking seats | Admin only |
-| Manage users and roles; cancel bookings | Admin only |
-| Booking/event PDF and CSV exports | Admin only |
-| Booking confirmation and cancellation email preview / SMTP | Configured backend |
-| Free admission, RMB/CNY display | Entire app |
+The demo command is **development-only**; it requires `DEMO_SEED_PASSWORD` configured privately and creates only local demo users. In PowerShell:
 
-## Database upgrades and backups
+```powershell
+$env:DEMO_SEED_PASSWORD = 'use-a-long-random-demo-password'
+python -m flask --app run.py seed-demo
+Remove-Item Env:DEMO_SEED_PASSWORD
+```
 
-Before replacing an earlier V5.x installation, **stop the old server and back up the original `instance/cstbs.db` and its secret**. Copy the DB into this V5.2 folder, preserve your old `.env` `SECRET_KEY` if set (otherwise session cookies and fingerprints change), and run `python -m flask --app run.py init-db`. This idempotent SQLite update adds an administrator-target field to the previous key table and revokes unbound V5.1 registration keys; it does **not** remove accounts, bookings or events. All older admin accounts can request fresh login keys.
+The event seed is idempotent. Demo tickets have distinct student attendees; none are promoted automatically in a production environment.
 
-**Important:** New users, student IDs and reserved seats are kept. Do not commit real databases, `.env`, secret files or terminal keys to GitHub.
+## Reservation and gate flow
 
-## Security / testing
+1. Student logs in and selects 1–6 open seats on an upcoming event.
+2. In **Review**, the first seat is assigned to themselves. Each additional seat requires the registered student's full name and Student ID. CSTBS checks registered accounts and existing live tickets.
+3. On **Confirm**, the database writes the seat bookings and matching individual tickets in one transaction; race conditions reject the whole conflicting attempt.
+4. Student accesses **My tickets** and opens each QR ticket. Group attendees also see their own ticket from their account.
+5. Admin opens **Gate** for that event under **Admin → Events**. Staff/admin goes to **QR gate** on a phone. QR scan opens a read-only verification page; staff verifies identity and presses **Confirm stadium entry** (POST + CSRF).
+6. Repeated scans show **Already used**. Cancelled or unassigned tickets cannot enter. Checked-in tickets are preserved and cannot be cancelled using normal cancellation controls.
 
-Keys use `secrets`, HMAC-SHA256 fingerprints, per-admin binding, database-backed expiry, atomic one-time consumption, limited issuance, CSRF checks and login rate limits. No admin account can be created by entering an arbitrary email and key on a public page. Terminal access is privileged: keep your computer and console private. The admin password route cannot bypass the key. For production use HTTPS, trusted hosts, a strong explicit secret, Redis shared rate limits, approved SMTP, robust backups and reviewed migrations. See `SECURITY.md` and `docs/installation-deployment.md`.
+## Upgrading an existing V5.2 installation
 
-Run tests after installing dependencies:
+1. Stop the old server and copy `instance/cstbs.db` into the new version's `instance/`. Also preserve the existing `SECRET_KEY` from your environment or `instance/.local_secret_key`; otherwise sessions and existing HMAC keys will not survive. For public deployments preserve your explicit `TICKET_SIGNING_KEY` as well.
+2. Run `python -m flask --app run.py init-db`. On a legacy SQLite DB the migration automatically creates an integrity-checked pre-upgrade snapshot in ignored `instance/backups/` **before changing the schema**. The migration is idempotent.
+3. Existing admin roles remain, but **admins must activate a password once** with a new 20-minute key. Run `admin-key EMAIL` or start interactively. Students continue to log in normally.
+4. The upgrade preserves V5.2 bookings. For a student who held multiple active seats at the same event, **only the first can automatically become that student's QR ticket**. The others remain reserved with **unassigned** ticket status, which an admin must assign to a different verified registered attendee in **Admin → Bookings**. No history or seat reservation is silently deleted.
+5. Re-run all tests, inspect capacity, test key activation, confirm a QR scan and restore from backup if unexpected inconsistencies appear.
+
+More detailed upgrade/backup steps: [`docs/installation-deployment.md`](docs/installation-deployment.md).
+
+## Testing and GitHub-safe workflow
 
 ```powershell
 python -m unittest discover -s tests -v
+python -m compileall -q app tests run.py config.py
+python -m flask --app run.py backup-db
 ```
 
-## Documentation
+The GitHub Actions workflow runs checks on pushes and pull requests; **it does not deploy or touch your live DB**. Enable branch protection requiring CI to pass before merging. Deploy only an approved release artifact after a separate DB backup and reviewed migration. GitHub contains source code, not your runtime database. Use persistent storage and stable secrets at the actual host. See [`SECURITY.md`](SECURITY.md) and [`docs/installation-deployment.md`](docs/installation-deployment.md).
 
-- `docs/user-manual.md`: student browsing and seat reservations.
-- `docs/admin-manual.md`: first-run admin key login and web management.
-- `docs/installation-deployment.md`: Windows setup, migration and production guidance.
-- `docs/uml.md`, `docs/database-design.md`: models and access flows.
-- `CHANGELOG.md`: all releases, including V5.2.
-- `docs/github-release-v5.2.md`: ready-to-copy GitHub release notes.
+**Health endpoint:** `GET /health` returns `{"status":"ok","version":"5.3"}` when DB queries work.
 
-**Release tag:** `v5.2` — *CSTBS v5.2: Simplified Administrator Login*.
+## Project documentation
+
+- [`docs/user-manual.md`](docs/user-manual.md) — booking for classmates, QR tickets, cancellation
+- [`docs/admin-manual.md`](docs/admin-manual.md) — first admin activation, stadium operations, attendee correction
+- [`docs/installation-deployment.md`](docs/installation-deployment.md) — Windows, environments, migrations, backups, deployment
+- [`docs/database-design.md`](docs/database-design.md) — V5.3 ER model, constraints and legacy compatibility
+- [`docs/uml.md`](docs/uml.md) — PlantUML class, activity and entry sequence diagrams
+- [`docs/github-release-v5.3.md`](docs/github-release-v5.3.md) — copy-ready GitHub release text
+- [`CHANGELOG.md`](CHANGELOG.md) — V1.0 through V5.3
+
+**Not a payment or public university identity-verification system.** For broader production use, obtain consent, perform institutional security and privacy review, adopt production-grade backups and monitoring, and plan a scalable database and trustworthy MFA/SSO for privileged users.

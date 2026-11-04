@@ -45,6 +45,7 @@ class Config:
 
     APP_ENV = os.getenv("APP_ENV", "development").lower()
     SECRET_KEY = configured_secret()
+    TICKET_SIGNING_KEY = os.getenv("TICKET_SIGNING_KEY") or (configured_secret() if os.getenv("APP_ENV", "development").lower() != "production" else None)
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///cstbs.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"timeout": 15}} if SQLALCHEMY_DATABASE_URI.startswith("sqlite:") else {}

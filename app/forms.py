@@ -51,10 +51,9 @@ class RegisterForm(FlaskForm):
 
 
 class AdminLoginForm(FlaskForm):
-    """Access an existing admin account using a 20-minute single-use key."""
+    """Administrator normal password login after one-time activation."""
     email = StringField("Administrator email", validators=EMAIL_VALIDATORS)
-    admin_key = PasswordField("One-time access key", validators=[
-        DataRequired(), Length(min=20, max=160)])
+    password = PasswordField("Password", validators=[DataRequired()])
     submit = SubmitField("Sign in to dashboard")
 
 
@@ -107,9 +106,9 @@ class RenameSectionForm(FlaskForm):
 
 
 class AdminInviteForm(FlaskForm):
-    """CSRF-protected login-key issuance bound to a specific admin ID."""
+    """CSRF-protected activation-key issuance bound to an admin ID."""
     target_user_id = HiddenField("Administrator ID", validators=[DataRequired()])
-    submit = SubmitField("Generate one-time admin key")
+    submit = SubmitField("Generate activation / reset key")
 
 
 class RoleForm(FlaskForm):
@@ -117,3 +116,12 @@ class RoleForm(FlaskForm):
     role = SelectField("Role", choices=[("student", "Student"), ("staff", "Staff"),
                                         ("admin", "Admin")], validators=[DataRequired()])
     submit = SubmitField("Update role")
+
+
+class AdminActivationForm(FlaskForm):
+    """Activate an administrator once and choose a reusable strong password."""
+    email = StringField("Administrator email", validators=EMAIL_VALIDATORS)
+    admin_key = PasswordField("20-minute activation key", validators=[DataRequired(), Length(min=20, max=160)])
+    password = PasswordField("Create password", validators=[DataRequired(), Length(min=12, max=128)])
+    confirm_password = PasswordField("Confirm password", validators=[DataRequired(), EqualTo("password")])
+    submit = SubmitField("Activate administrator account")

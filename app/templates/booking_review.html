@@ -1,27 +1,34 @@
 {% extends 'base.html' %}
-{% block title %}Confirm reservation{% endblock %}
+{% block title %}Review student tickets{% endblock %}
 {% block content %}
-<section class="page-heading container">
-  <span class="section-kicker">FINAL STEP</span>
-  <h1>Review your <em>reservation.</em></h1>
-  <p>Confirm your selection to reserve these seats. Seats are not held until confirmation succeeds.</p>
-</section>
-<section class="container confirm-section">
-  <article class="confirm-panel">
-    <h2>{{ event.title }}</h2>
-    <p class="confirm-details">{{ event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
-    <div class="confirm-seats"><span>Selected seats</span><strong>{% for seat in seats %}{{ seat.display_label }}{% if not loop.last %}, {% endif %}{% endfor %}</strong></div>
-    <div class="confirm-seats"><span>Quantity</span><strong>{{ seats|length }}</strong></div>
-    <div class="confirm-seats"><span>Admission</span><strong>Free</strong></div>
-    <div class="checkout-total"><span>Amount due</span><strong>¥0.00</strong></div>
+<section class="page-heading container animated-enter"><span class="section-kicker">ATTENDEE VERIFICATION</span>
+<h1>Reserve for <em>your people.</em></h1>
+<p>One ticket per registered student per event. Every seat needs a verified name and Student ID. The first seat is yours.</p></section>
+<section class="container confirm-section"><article class="confirm-panel glass-panel">
+  <h2>{{ event.title }}</h2>
+  <p class="confirm-details">{{ event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ event.venue }}</p>
+  <form method="post" action="{{ url_for('main.booking_confirm', event_id=event.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% for seat in seats %}
+    <fieldset class="attendee-card">
+      <legend><strong>Ticket {{ loop.index }} · {{ seat.display_label }}</strong>{% if loop.first %}<span class="tag-free">Your seat</span>{% endif %}</legend>
+      <div class="attendee-fields">
+        <div class="form-field"><label for="attendee-name-{{ loop.index }}">Registered student full name</label>
+        <input class="form-control" id="attendee-name-{{ loop.index }}" name="attendee_name" maxlength="120" required
+               value="{{ student.full_name if loop.first else '' }}" placeholder="Name as registered"></div>
+        <div class="form-field"><label for="attendee-id-{{ loop.index }}">Student ID</label>
+        <input class="form-control" id="attendee-id-{{ loop.index }}" name="attendee_student_id" minlength="6" maxlength="20"
+               pattern="[A-Za-z0-9]{6,20}" required value="{{ student.student_id if loop.first else '' }}" placeholder="University Student ID"></div>
+      </div>
+      {% if not loop.first %}<p class="muted">Only book for a student who has agreed to attend and is registered in CSTBS.</p>{% endif %}
+    </fieldset>
+    {% endfor %}
+    <div class="checkout-total"><span>Total payable</span><strong>¥0.00 · Free</strong></div>
     <div class="confirm-actions">
-      <form method="post" action="{{ url_for('main.booking_confirm', event_id=event.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button button-primary" type="submit">Confirm reservation</button>
-      </form>
+      <button class="button button-primary" type="submit">Confirm {{ seats|length }} free ticket{{ '' if seats|length == 1 else 's' }}</button>
       <a class="button button-secondary" href="{{ url_for('main.seat_map', event_id=event.id) }}">Choose different seats</a>
     </div>
-    <p class="seat-hint">Availability can change before confirmation. If a seat was taken, no seats in this selection will be booked.</p>
-  </article>
-</section>
+  </form>
+  <p class="seat-hint">No seats are held during review. Final confirmation rechecks every seat and attendee.</p>
+</article></section>
 {% endblock %}

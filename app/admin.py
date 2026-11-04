@@ -16,9 +16,10 @@ from sqlalchemy.orm import joinedload
 from . import db, limiter
 from .authz import admin_required
 from .forms import CreateSectionForm, RenameSectionForm, RoleForm, AdminInviteForm, StudentIDForm
-from .models import Booking, Event, Seat, User
+from .models import Booking, Event, Seat, Ticket, User
 from .notifications import notify_booking_cancelled
 from .admin_keys import issue_login_key
+import secrets
 
 admin = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -199,7 +200,11 @@ def change_role(user_id):
     elif form.role.data == "student" and not account.student_id:
         flash("Assign a unique Student ID before changing this user to student.", "error")
     else:
+        if form.role.data == "admin" and account.role != "admin":
+            account.set_password(secrets.token_urlsafe(48))
+            account.password_ready = False
         account.role = form.role.data
+        account.auth_version = (account.auth_version or 0) + 1
         db.session.commit()
         flash(f"Role updated for {account.email}.", "success")
     return redirect(url_for("admin.users"))
@@ -220,6 +225,9 @@ def generate_admin_key():
     target = db.session.get(User, target_id)
     if target is None or target.role != "admin":
         abort(400)
+    if target.password_ready and request.form.get("confirm_reset") != "yes":
+        flash("Reset confirmation required before disabling an existing admin password.", "error")
+        return redirect(url_for("admin.users"))
     key = issue_login_key(target, created_by=current_user.id)
     response = render_template("admin/invitation_created.html", key=key, target=target)
     from flask import make_response
@@ -287,9 +295,53 @@ def cancel_booking(booking_id):
     booking = db.get_or_404(Booking, booking_id)
     if booking.status == "cancelled":
         flash("This booking is already cancelled.", "info")
+    elif booking.ticket and booking.ticket.status == "checked_in":
+        flash("Checked-in tickets cannot be cancelled. Check-in remains in the audit history.", "error")
     else:
         booking.status = "cancelled"
+        if booking.ticket:
+            booking.ticket.status = "cancelled"
         db.session.commit()
         notify_booking_cancelled(booking)
         flash("Reservation cancelled; owner notification processed.", "success")
+    return redirect(url_for("admin.bookings"))
+
+
+@admin.post("/events/<int:event_id>/toggle/<gate>")
+@_admin_route
+def toggle_event_gate(event_id, gate):
+    """Admins explicitly control when reservations and stadium entry are open."""
+    if gate not in ("booking", "checkin"):
+        abort(404)
+    event = db.get_or_404(Event, event_id)
+    field = "booking_enabled" if gate == "booking" else "checkin_enabled"
+    setattr(event, field, not getattr(event, field))
+    db.session.commit()
+    flash(f"{gate.title()} {'opened' if getattr(event, field) else 'closed'} for {event.title}.", "success")
+    return redirect(url_for("main.admin_events"))
+
+
+@admin.post("/tickets/<int:ticket_id>/assign")
+@_admin_route
+def assign_legacy_ticket(ticket_id):
+    """Verify an old multi-seat booking's attendee before issuing any QR."""
+    ticket = db.get_or_404(Ticket, ticket_id)
+    if ticket.status != "unassigned" or ticket.booking.status != "reserved":
+        abort(400)
+    from .ticketing import verify_attendee
+    sid, name = request.form.get("student_id", ""), request.form.get("student_name", "")
+    user, error = verify_attendee(sid, name)
+    if error:
+        flash(error, "error")
+    else:
+        ticket.attendee_user_id = user.id
+        ticket.attendee_student_id = user.student_id
+        ticket.attendee_name = user.full_name
+        ticket.status = "active"
+        try:
+            db.session.commit()
+            flash("Legacy booking assigned and QR ticket enabled.", "success")
+        except IntegrityError:
+            db.session.rollback()
+            flash("That student already has an active ticket for this event.", "error")
     return redirect(url_for("admin.bookings"))

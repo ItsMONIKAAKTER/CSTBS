@@ -1,42 +1,42 @@
-# Administrator Manual — CSTBS v5.2
+# CSTBS v5.3 — Administrator and Gate Staff Manual
 
-## First administrator: zero Notepad or code editing
+## First administrator activation (no Notepad)
 
-1. Open PowerShell inside the project, activate `.venv`, and run `python run.py`.
-2. If no administrator exists, the server prompts for **administrator email** and **full name**; answer in PowerShell. This creates the admin account in SQLite with a securely random unusable password.
-3. Copy the key printed under `CSTBS ADMIN LOGIN KEY` in that terminal.
-4. Visit **http://127.0.0.1:5000/admin/login**, enter the same email and the key, then **Sign in to dashboard**.
-5. The key expires after **20 minutes** and is consumed at successful login. Your authenticated session continues independently of key expiry.
+Local interactive startup (`python run.py`) prompts for first administrator email/name **only when no admin exists**. It prints a single-use 20-minute activation key. Open `/admin/activate`, supply email/key and choose a strong password. The key is consumed. Future access is `/admin/login` with **email + password**. There is no public admin registration and no manual editing of a key in code, `.env` or SQLite.
 
-**No admin registration page and no need to paste a key into Notepad, `.env`, PyCharm or SQLite.**
+For an expired key, if the account is not activated, run `python -m flask --app run.py admin-key EMAIL` in a trusted terminal. For account recovery after activation, a trusted operator runs `admin-reset EMAIL`, which revokes previous password sessions and issues a key. Protect terminal access and never publish keys.
 
-## Login again / expired or lost key
+## Admin dashboard and event management
 
-From a **second PowerShell window** in this folder (with `.venv` active):
+- `/admin/`: KPIs, active bookings and quick links.
+- `/admin/events`: Create/edit/delete events; manage seats and sections. Deletion is refused once an event has booking history.
+- **Booking ON/OFF**: controls whether upcoming events accept new reservations.
+- **Gate OPEN/CLOSED**: enables or prevents staff check-ins. Keep the gate closed until event staff are present and have verified entry procedures.
+- `/admin/events/<id>/seats`: Add/rename unused sections, block/unblock individual seats. Reserved seats cannot be blocked or removed until their reservation is cancelled.
 
-```powershell
-python -m flask --app run.py admin-key admin@university.edu
-```
+## Students and administrator roles
 
-The new key is printed immediately. Copy it into `/admin/login`. Issuing a new key revokes older unused keys for the same account. If no admin was ever provisioned, use `python -m flask --app run.py admin-setup`, which asks for the first email/name.
+`/admin/users` allows the admin to inspect students, correct Student IDs and assign staff/admin roles. Do not promote untrusted people. Promoting a user to admin invalidates their previous password and requires an explicit **activation key**. To reset an already activated admin password, check the explicit reset confirmation before generating a new key. Never demote the last admin. Campus staff can scan QR tickets but cannot perform event CRUD or download private reports.
 
-If multiple admin users exist, starting `python run.py` prompts which admin email should receive a new key. Admins are **never** authenticated solely by knowing an arbitrary email; keys are tied to an existing admin record.
+## Booking and legacy attendee management
 
-## Add another administrator without admin registration
+`/admin/bookings`: filter by event/status, review booking owners and each ticket's actual attendee, cancel unused bookings. A QR represents one **attendee**, not the purchaser. An old V5.2 multi-seat booking may be labeled **unassigned**. For these rows, verify the original booking ownership and the new attendee's consent/name/Student ID, then use **Assign attendee**. The system rejects duplicate live tickets for the same event/student.
 
-1. New person registers as a student (requires a Student ID) or uses an already-existing account.
-2. While signed in as admin, open **Admin Dashboard → Users** and change that account's role to **admin**. This requires an authorized admin session.
-3. Click **Generate login key** on that administrator's row. The 20-minute key is shown once on a protected no-cache page; share it privately with that person. They sign in at `/admin/login` with the email on that row.
-4. Existing admins can regenerate their own keys in the local PowerShell terminal at any time.
+Do not cancel checked-in reservations as normal operations; entry history stays intact. If a student is ineligible or a QR appears duplicated, stop entry and investigate rather than overriding the gate record.
 
-## Administration features retained
+## QR check-in operations
 
-- `/admin/`: system metrics and recent booking activity.
-- `/admin/events`: manage events and schedules.
-- `/admin/events/<event_id>/seats`: block/unblock seats and manage seating sections.
-- `/admin/users`: roles, Student IDs and one-time admin login keys.
-- `/admin/bookings`: manage and cancel reservations.
-- `/admin/reports/`: PDF and CSV booking/event reports.
-- Booking/cancellation email notifications via console backend or configured SMTP.
+1. Assign trusted gate workers the **staff** role. All gate workers must use their own account and secure device.
+2. Open the relevant event's **Gate** control before admitting people.
+3. Open `/entry/scan` on a mobile browser. In Chromium-based browsers with `BarcodeDetector`, choose **Start camera**; camera access requires HTTPS or localhost. Otherwise use the phone's camera app to scan the QR URL or paste the URL in the manual verification field.
+4. The app opens `/entry/verify/<signed-code>` and shows **Valid**, **Already used**, **Cancelled**, **Unassigned**, **Gate closed**, or **Invalid**. Compare the ticket name and Student ID with the student's physical identity document.
+5. Press **Confirm stadium entry** only for valid and matching attendees. The server updates the ticket conditionally so two gates cannot record a second admission. The page then shows **Already used** on subsequent attempts.
+6. Close the event gate after the session and export attendance from `/admin/reports/attendance.csv` or `.pdf`.
 
-The system is for **free university reservations**; no payment gateway. Access is protected by Flask-Login, CSRF, per-IP request limits and role checks. Keep key output, emails, student IDs and exported reports confidential.
+## Reports and privacy
+
+Admins can download event, booking and attendance PDF/CSV. These exports contain students' names, IDs and emails; store them privately according to your university's retention policy. Never push reports or SQLite databases to GitHub.
+
+## Operational safety
+
+Back up the SQLite file and stable signing keys before upgrades. Use `flask backup-db` on demand. For multi-gate high-volume university operation, use institution-approved hosting, monitoring, transaction-capable central storage, and a reviewed authentication policy (MFA/SSO recommended).

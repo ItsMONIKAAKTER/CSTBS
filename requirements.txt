@@ -1,4 +1,4 @@
-# CSTBS v5.2 | Python 3.10+ | constrained compatible release series
+# CSTBS v5.3 | Python 3.10+ | constrained compatible release series
 Flask>=3.1,<4.0
 Flask-SQLAlchemy>=3.1,<4.0
 SQLAlchemy>=2.0,<3.0
@@ -10,3 +10,6 @@ reportlab>=4.2,<5.0
 python-dotenv>=1.0,<2.0
 # Recommended for Unix-based deployments; not used by the local dev server.
 gunicorn>=22,<24; platform_system != "Windows"
+
+# Signed, individually scannable QR tickets (Pillow image support)
+qrcode[pil]>=7.4,<9.0

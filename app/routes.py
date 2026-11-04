@@ -10,10 +10,11 @@ from sqlalchemy.exc import IntegrityError
 from . import db, limiter
 from .authz import admin_required
 from .notifications import notify_booking_confirmed, notify_booking_cancelled
-from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm, AdminLoginForm, StudentIDForm
-from .models import Booking, Event, Seat, User, utc_now
+from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm, AdminLoginForm, AdminActivationForm, StudentIDForm
+from .models import Booking, Event, Seat, Ticket, User, utc_now
 from .seating import MAX_SEATS_PER_BOOKING, add_default_seats, reserved_seat_ids
 from .admin_keys import consume_login_key
+from .ticketing import resolve_attendees, create_tickets_for_bookings
 
 main = Blueprint("main", __name__)
 
@@ -90,29 +91,51 @@ def legacy_admin_register_redirect():
 
 
 @main.route("/admin/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute; 15 per hour", methods=["POST"])
+@limiter.limit("5 per minute; 20 per hour", methods=["POST"])
 def admin_login():
-    """Authenticate an existing admin using a one-time, email-bound login key."""
+    """Admin password login; keys are only used for initial activation/reset."""
     if current_user.is_authenticated:
-        if current_user.is_admin:
-            return redirect(url_for("admin.dashboard"))
-        return redirect(url_for("main.account"))
+        return redirect(url_for("admin.dashboard" if current_user.is_admin else "main.account"))
     form = AdminLoginForm()
     if form.validate_on_submit():
-        user = consume_login_key(form.email.data, form.admin_key.data)
-        if user is not None:
-            # Avoid carrying anonymous booking drafts into the admin session.
+        email = form.email.data.strip().lower()
+        user = db.session.scalar(select(User).where(User.email == email, User.role == "admin"))
+        if user and user.password_ready and user.check_password(form.password.data):
             session.clear()
             login_user(user, fresh=True)
-            flash("Administrator login successful.", "success")
+            session["admin_auth_version"] = user.auth_version
+            flash("Welcome back to the stadium dashboard.", "success")
             return redirect(url_for("admin.dashboard"))
-        form.admin_key.errors.append(
-            "Invalid, expired, or used key. Generate a new key in the server terminal.")
-    response = render_template("admin_login.html", form=form)
+        flash("Invalid credentials or account not activated. First-time admins must activate with their key.", "error")
+    response = make_no_store(render_template("admin_login.html", form=form))
+    return response
+
+
+@main.route("/admin/activate", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 15 per hour", methods=["POST"])
+def admin_activate():
+    """Consume a 20-minute single-use key AND set the first real password."""
+    if current_user.is_authenticated:
+        return redirect(url_for("admin.dashboard" if current_user.is_admin else "main.account"))
+    form = AdminActivationForm()
+    if form.validate_on_submit():
+        user = consume_login_key(form.email.data, form.admin_key.data, form.password.data)
+        if user:
+            session.clear()
+            login_user(user, fresh=True)
+            session["admin_auth_version"] = user.auth_version
+            flash("Account activated. Use email and password for future logins.", "success")
+            return redirect(url_for("admin.dashboard"))
+        form.admin_key.errors.append("Key invalid, expired or already used. Request a fresh activation key.")
+    return make_no_store(render_template("admin_activate.html", form=form))
+
+
+def make_no_store(page):
     from flask import make_response
-    result = make_response(response)
-    result.headers["Cache-Control"] = "no-store, private"
-    return result
+    response = make_response(page)
+    response.headers["Cache-Control"] = "no-store, private"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @main.post("/account/student-id")
@@ -280,7 +303,7 @@ def _requested_seats(event, raw):
 
 def _future_event(event):
     """Do not accept new reservations after the advertised event start."""
-    if event.starts_at <= datetime.now():
+    if event.starts_at <= datetime.now() or not event.booking_enabled:
         flash("Reservations have closed for this event.", "error")
         return False
     return True
@@ -291,6 +314,11 @@ def _future_event(event):
 def seat_map(event_id):
     """Interactive seat selection, backed by the current SQLite inventory."""
     event = db.get_or_404(Event, event_id)
+    if current_user.role != "student":
+        abort(403)
+    if not current_user.student_id:
+        flash("Add your Student ID before reserving a ticket.", "error")
+        return redirect(url_for("main.account"))
     seats = db.session.scalars(
         select(Seat).where(Seat.event_id == event.id)
         .order_by(Seat.row_label, Seat.number)
@@ -298,7 +326,7 @@ def seat_map(event_id):
     return render_template("seat_map.html", event=event, seats=seats,
                            occupied=reserved_seat_ids(event.id),
                            blocked={seat.id for seat in seats if seat.is_blocked},
-                           booking_open=event.starts_at > datetime.now(),
+                           booking_open=event.starts_at > datetime.now() and event.booking_enabled,
                            max_seats=MAX_SEATS_PER_BOOKING)
 
 
@@ -316,7 +344,7 @@ def event_seat_availability(event_id):
     result = jsonify(event_id=event.id, reserved_seat_ids=occupied,
                      blocked_seat_ids=blocked,
                      available=total - len(set(occupied) | set(blocked)), total=total,
-                     booking_open=event.starts_at > datetime.now())
+                     booking_open=event.starts_at > datetime.now() and event.booking_enabled)
     result.headers["Cache-Control"] = "no-store, max-age=0"
     return result
 
@@ -326,6 +354,8 @@ def event_seat_availability(event_id):
 def booking_review(event_id):
     """Review selected seats and total before the user confirms a write."""
     event = db.get_or_404(Event, event_id)
+    if current_user.role != "student" or not current_user.student_id:
+        abort(403)
     session.pop("pending_booking", None)
     if not _future_event(event):
         return redirect(url_for("main.seat_map", event_id=event.id))
@@ -336,7 +366,7 @@ def booking_review(event_id):
     session["pending_booking"] = {"event_id": event.id,
                                   "seat_ids": [seat.id for seat in seats]}
     return render_template("booking_review.html", event=event, seats=seats,
-                           total=0)
+                           total=0, student=current_user)
 
 
 @main.post("/events/<int:event_id>/booking/confirm")
@@ -345,6 +375,8 @@ def booking_review(event_id):
 def booking_confirm(event_id):
     """Atomically create reservations with a DB-level unique active-seat guard."""
     event = db.get_or_404(Event, event_id)
+    if current_user.role != "student" or not current_user.student_id:
+        abort(403)
     pending = session.pop("pending_booking", None)
     if not pending or pending.get("event_id") != event.id:
         flash("Select seats and review them before confirming.", "error")
@@ -355,16 +387,25 @@ def booking_confirm(event_id):
     if error:
         flash(error, "error")
         return redirect(url_for("main.seat_map", event_id=event.id))
+    attendees, attendee_error = resolve_attendees(
+        event.id, current_user, len(seats),
+        request.form.getlist("attendee_student_id"),
+        request.form.getlist("attendee_name"),
+    )
+    if attendee_error:
+        flash(attendee_error, "error")
+        return redirect(url_for("main.seat_map", event_id=event.id))
     bookings = [Booking(user_id=current_user.id, seat_id=seat.id,
-                        status="reserved", price_at_booking=0)
-                for seat in seats]
-    db.session.add_all(bookings)
+                        status="reserved", price_at_booking=0) for seat in seats]
     try:
+        db.session.add_all(bookings)
+        db.session.flush()
+        create_tickets_for_bookings(event, bookings, attendees)
         db.session.commit()
     except IntegrityError:
         # The partial unique index wins if somebody booked during confirmation.
         db.session.rollback()
-        flash("A selected seat was taken moments ago. No seats were booked.", "error")
+        flash("A seat or attendee was already reserved. Nothing was booked. Please try again.", "error")
         return redirect(url_for("main.seat_map", event_id=event.id))
     notify_booking_confirmed(current_user, event, bookings)
     flash(f"Booking confirmed for {len(bookings)} seat(s).", "success")
@@ -376,8 +417,8 @@ def booking_confirm(event_id):
 def booking_history():
     """Show the current user's active and cancelled one-seat reservations."""
     bookings = db.session.scalars(
-        select(Booking).join(Seat).join(Event)
-        .where(Booking.user_id == current_user.id)
+        select(Booking).join(Seat).join(Event).outerjoin(Ticket, Ticket.booking_id == Booking.id)
+        .where((Booking.user_id == current_user.id) | (Ticket.attendee_user_id == current_user.id))
         .order_by(Booking.created_at.desc(), Booking.id.desc())
     ).all()
     return render_template("booking_history.html", bookings=bookings)
@@ -388,15 +429,20 @@ def booking_history():
 def cancel_booking(booking_id):
     """Permit only the owner to cancel; preserve cancelled records."""
     booking = db.session.scalar(
-        select(Booking).where(Booking.id == booking_id,
-                              Booking.user_id == current_user.id)
+        select(Booking).outerjoin(Ticket, Ticket.booking_id == Booking.id)
+        .where(Booking.id == booking_id,
+            (Booking.user_id == current_user.id) | (Ticket.attendee_user_id == current_user.id))
     )
     if booking is None:
         abort(404)  # Hide other users' reservation IDs.
     if booking.status != "reserved":
         flash("This reservation is already cancelled.", "info")
+    elif booking.ticket and booking.ticket.status == "checked_in":
+        flash("A checked-in ticket cannot be cancelled.", "error")
     else:
         booking.status = "cancelled"
+        if booking.ticket:
+            booking.ticket.status = "cancelled"
         db.session.commit()
         notify_booking_cancelled(booking)
         flash(f"Cancelled seat {booking.seat.label} for {booking.event.title}.", "success")

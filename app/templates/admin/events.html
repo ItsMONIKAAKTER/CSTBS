@@ -23,6 +23,12 @@
                 <div class="admin-actions">
                     <a class="button button-secondary button-small" href="{{ url_for('main.admin_event_edit', event_id=event.id) }}">Edit</a>
                     <a class="button button-secondary button-small" href="{{ url_for('admin.seats', event_id=event.id) }}">Seats</a>
+                    <form method="post" action="{{ url_for('admin.toggle_event_gate', event_id=event.id, gate='booking') }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="button button-secondary button-small" type="submit">Booking {{ 'ON' if event.booking_enabled else 'OFF' }}</button></form>
+                    <form method="post" action="{{ url_for('admin.toggle_event_gate', event_id=event.id, gate='checkin') }}">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="button button-secondary button-small" type="submit">Gate {{ 'OPEN' if event.checkin_enabled else 'CLOSED' }}</button></form>
                     <form method="post" action="{{ url_for('main.admin_event_delete', event_id=event.id) }}" data-confirm="Delete this event? This cannot be undone.">
                         {{ delete_form.hidden_tag() }}
                         <button type="submit" class="button button-danger button-small">Delete</button>

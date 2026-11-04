@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Digital stadium ticket{% endblock %}
+{% block content %}
+<section class="page-heading container animated-enter"><span class="section-kicker">YOUR DIGITAL ACCESS PASS</span>
+<h1>You're on the <em>list.</em></h1><p>Show this QR ticket to authorized stadium staff. One entry per attendee.</p></section>
+<section class="container ticket-display-wrap"><article class="digital-ticket glass-panel">
+  <div class="ticket-event-head"><span class="section-kicker">CSTBS · UNIVERSITY STADIUM</span><span class="history-state {{ 'is-active' if ticket.status == 'active' else 'is-cancelled' }}">{{ ticket.status|replace('_', ' ')|capitalize }}</span></div>
+  <h2>{{ ticket.event.title }}</h2>
+  <p class="muted">{{ ticket.event.starts_at.strftime('%A, %b %d, %Y · %I:%M %p') }} · {{ ticket.event.venue }}</p>
+  <div class="digital-ticket-grid"><div><span>Ticket holder</span><strong>{{ ticket.attendee_name }}</strong></div>
+    <div><span>Student ID</span><strong>{{ ticket.attendee_student_id or 'Unassigned' }}</strong></div>
+    <div><span>Seat</span><strong>{{ ticket.seat.display_label }}</strong></div><div><span>Admission</span><strong>FREE</strong></div></div>
+  {% if ticket.status == 'active' %}
+    <div class="qr-shell"><img alt="Secure QR pass for ticket {{ ticket.id }}" src="{{ url_for('entry.ticket_qr', ticket_id=ticket.id) }}" width="250" height="250"><p>Present this QR at the stadium gate</p></div>
+  {% elif ticket.status == 'checked_in' %}
+    <p class="flash flash-success">This ticket was checked in at {{ ticket.checked_in_at.strftime('%Y-%m-%d %H:%M') }} UTC.</p>
+  {% else %}<p class="flash flash-error">Ticket is not valid for entry.</p>{% endif %}
+  <small class="muted">Ticket #{{ ticket.id }} · No payment required · Do not publicly share this QR.</small>
+</article></section>
+{% endblock %}

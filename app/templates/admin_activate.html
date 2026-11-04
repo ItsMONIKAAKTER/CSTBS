@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Activate administrator{% endblock %}
+{% block content %}
+<section class="auth-section animated-enter"><div class="auth-card glass-panel">
+  <span class="section-kicker">SECURE ONE-TIME ACTIVATION</span>
+  <h1>Activate your <em>admin account.</em></h1>
+  <p class="auth-subtitle">Enter the one-time key from PowerShell and choose a password. You will use the password for every future login. The key expires after 20 minutes.</p>
+  <form method="post" novalidate>{{ form.hidden_tag() }}
+    {% for field in [form.email, form.admin_key, form.password, form.confirm_password] %}
+      <div class="form-field">{{ field.label }}{{ field(class='form-control') }}{% for err in field.errors %}<p class="field-error" role="alert">{{ err }}</p>{% endfor %}</div>
+    {% endfor %}
+    {{ form.submit(class='button button-primary button-full') }}
+  </form>
+  <p class="muted">No key editing in Notepad or Python is required. If the key expires, an authorized admin or a trusted terminal operator can issue a fresh activation key.</p>
+  <p class="auth-switch">Already activated? <a href="{{ url_for('main.admin_login') }}">Administrator sign-in</a></p>
+</div></section>
+{% endblock %}

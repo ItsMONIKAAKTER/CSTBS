@@ -56,10 +56,9 @@ class AdminTests(unittest.TestCase):
     def sign_in(self, email):
         user = db.session.scalar(select(User).where(User.email == email))
         if user.role == "admin":
-            key = issue_login_key(user)
             return self.client.post("/admin/login", data={
                 "csrf_token": self.csrf("/admin/login"), "email": email,
-                "admin_key": key})
+                "password": "StrongPass123"})
         return self.client.post("/login", data={"csrf_token": self.csrf("/login"),
             "email": email, "password": "StrongPass123"})
 

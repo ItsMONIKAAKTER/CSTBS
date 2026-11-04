@@ -1,28 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}Administrator Login{% endblock %}
+{% block title %}Administrator sign-in{% endblock %}
 {% block content %}
-<section class="auth-section">
-  <div class="auth-card">
-    <span class="section-kicker">SECURE CAMPUS ADMINISTRATION</span>
-    <h1>Admin login</h1>
-    <p class="auth-subtitle">Enter your administrator email and the 20-minute one-time key shown in the server terminal. No admin registration or file editing required.</p>
-    <form method="post" novalidate>
-      {{ form.hidden_tag() }}
-      {% if form.csrf_token.errors %}<p class="field-error" role="alert">Security check expired. Refresh this page.</p>{% endif %}
-      <div class="form-field">
-        {{ form.email.label }}
-        {{ form.email(class='form-control', placeholder='admin@university.edu', autocomplete='email', inputmode='email') }}
-        {% for error in form.email.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
-      </div>
-      <div class="form-field">
-        {{ form.admin_key.label }}
-        {{ form.admin_key(class='form-control', placeholder='CSTBS-...', autocomplete='one-time-code') }}
-        {% for error in form.admin_key.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
-      </div>
-      <p class="muted">Keys expire after <strong>20 minutes</strong> or one use. If yours expires, run <code>python -m flask --app run.py admin-key your@email.com</code> in another PowerShell window.</p>
-      {{ form.submit(class='button button-primary button-full') }}
-    </form>
-    <p class="auth-switch">Student? <a href="{{ url_for('main.login') }}">Student login</a> · <a href="{{ url_for('main.register') }}">Register</a></p>
-  </div>
-</section>
+<section class="auth-section animated-enter"><div class="auth-card glass-panel">
+  <span class="section-kicker">CSTBS CONTROL CENTRE</span>
+  <h1>Welcome back, <em>admin.</em></h1>
+  <p class="auth-subtitle">Sign in with your university email and the password you set during one-time activation.</p>
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-field">{{ form.email.label }}{{ form.email(class='form-control', placeholder='admin@university.edu', autocomplete='email') }}{% for error in form.email.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>
+    <div class="form-field">{{ form.password.label }}{{ form.password(class='form-control', autocomplete='current-password') }}{% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>
+    {{ form.submit(class='button button-primary button-full') }}
+  </form>
+  <p class="auth-switch">First time or resetting your password? <a href="{{ url_for('main.admin_activate') }}">Activate with a 20-minute key</a></p>
+  <p class="auth-switch">Student? <a href="{{ url_for('main.login') }}">Student sign-in</a></p>
+</div></section>
 {% endblock %}

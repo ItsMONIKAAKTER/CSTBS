@@ -378,3 +378,116 @@ a.metric-card:hover { border-color: #aacbd2; background: #eaf5f4; }
 .student-id-inline { max-width: 450px; margin: 1rem 0; padding: 1rem 0; border-top: 1px solid #e3e8f1; }
 .student-id-admin { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .35rem; }
 .student-id-admin .form-control { min-width: 125px; max-width: 170px; }
+
+/* V5.3 - stadium night / campus day theme. Smooth, accessible, no frameworks. */
+:root {
+  --ui-ink: #14233d;
+  --ui-surface: rgba(255,255,255,.88);
+  --ui-border: rgba(37,75,126,.16);
+  --ui-glow: rgba(55,126,255,.12);
+  color-scheme: light;
+}
+html[data-theme="night"] {
+  color-scheme: dark;
+  --ui-ink: #e8f0ff;
+  --ui-surface: rgba(20,34,58,.93);
+  --ui-border: rgba(172,198,245,.21);
+  --ui-glow: rgba(64,143,255,.18);
+}
+html[data-theme="night"] body {
+  background: radial-gradient(circle at 8% -10%, #203b6a 0,transparent 46%),
+              radial-gradient(circle at 100% 45%, #103e51 0,transparent 45%),
+              #101b30;
+  color: #e8f0ff;
+}
+html[data-theme="night"] .site-header,
+html[data-theme="night"] .site-footer,
+html[data-theme="night"] .admin-panel,
+html[data-theme="night"] .auth-card,
+html[data-theme="night"] .confirm-panel,
+html[data-theme="night"] .history-card,
+html[data-theme="night"] .seat-card,
+html[data-theme="night"] .seat-checkout,
+html[data-theme="night"] .metric-card,
+html[data-theme="night"] .event-card,
+html[data-theme="night"] .glass-panel {
+  background: var(--ui-surface);
+  color: #e8f0ff;
+  border-color: var(--ui-border);
+}
+html[data-theme="night"] h1,
+html[data-theme="night"] h2,
+html[data-theme="night"] h3,
+html[data-theme="night"] strong,
+html[data-theme="night"] label,
+html[data-theme="night"] .admin-table,
+html[data-theme="night"] .brand-name,
+html[data-theme="night"] .nav-links a { color: #f3f7ff; }
+html[data-theme="night"] p,
+html[data-theme="night"] .muted,
+html[data-theme="night"] .auth-subtitle,
+html[data-theme="night"] .admin-help,
+html[data-theme="night"] .confirm-details { color: #b2c2da; }
+html[data-theme="night"] .form-control {
+  background: #1a2c49;
+  color: #f3f7ff;
+  border-color: #4f6c90;
+}
+html[data-theme="night"] .form-control::placeholder {color: #b4c5db;}
+html[data-theme="night"] .button-secondary {border-color: #6588b8; color: #e8f0ff; background: #20385b;}
+html[data-theme="night"] .admin-table th,
+html[data-theme="night"] .admin-table td {border-color: #3a5070;}
+html[data-theme="night"] .admin-table tr:hover {background: #233a59;}
+.theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 42px; min-width: 42px; padding: .35rem;
+  border: 1px solid var(--ui-border); border-radius: 13px;
+  font-size: 1.25rem; background: var(--ui-surface); color: var(--ui-ink);
+  cursor: pointer; transition: transform .25s ease, box-shadow .25s ease;
+}
+.theme-toggle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--ui-glow); }
+.glass-panel { backdrop-filter: blur(13px); border: 1px solid var(--ui-border); }
+.animated-enter { animation: stadium-rise .55s cubic-bezier(.18,.69,.21,1) both; }
+@keyframes stadium-rise {from { opacity:0; transform: translateY(15px); }to {opacity:1;transform:translateY(0);} }
+@keyframes stadium-pulse {0%,100%{box-shadow:0 0 0 0 rgba(20,157,139,.20)}55%{box-shadow:0 0 0 10px rgba(20,157,139,0)}}
+.seat-button:not(:disabled):hover {transform: translateY(-3px) scale(1.04); transition: transform .16s ease;}
+.seat-button.is-selected {animation:stadium-pulse 1.3s ease-in-out 1;}
+.attendee-card {border:1px solid var(--ui-border); border-radius:16px; padding:1.2rem; margin:0 0 1.1rem; background:var(--ui-glow);}
+.attendee-card legend {padding:0 .45rem;display:flex;align-items:center;gap:.7rem;color:var(--ui-ink);}
+.tag-free {color:#0d8571;background:#ddf9f2;border-radius:999px;padding:.25rem .55rem;font-weight:700;font-size:.75rem;}
+.attendee-fields {display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+.ticket-actions {display:flex; flex-wrap:wrap; align-items:center; gap:.65rem;}
+.ticket-display-wrap {display:flex;justify-content:center;margin-bottom:4rem;}
+.digital-ticket {max-width:760px;width:100%;padding:clamp(1.2rem,4vw,3rem);border-radius:24px;
+  background:var(--ui-surface); border:1px solid var(--ui-border);
+  box-shadow:0 25px 65px rgba(19,45,89,.10);}
+.ticket-event-head {display:flex;align-items:center;justify-content:space-between;gap:.8rem;}
+.digital-ticket h2 {font-size:clamp(1.7rem,4vw,2.6rem);margin:.8rem 0 .35rem;}
+.digital-ticket-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.5rem;margin:1.5rem 0;}
+.digital-ticket-grid > div {display:flex;flex-direction:column;gap:.32rem;}
+.digital-ticket-grid span {font-size:.83rem;color:#68819f;}
+.digital-ticket-grid strong {font-size:1.07rem;overflow-wrap:anywhere;}
+.qr-shell {padding:1.5rem 1rem;background:#fff;color:#172942;text-align:center;border:1px dashed #a1b3c7;border-radius:18px;max-width:350px;margin:1.5rem auto;}
+.qr-shell img {display:block;width:min(100%,250px);height:auto;aspect-ratio:1;margin:0 auto;image-rendering:pixelated;}
+.qr-shell p {font-weight:700;color:#2f4460;margin:.6rem 0 0;}
+.gate-grid {display:grid;grid-template-columns:1.1fr .9fr;gap:1.2rem;margin-bottom:4rem;}
+.gate-grid .admin-panel {padding:1.5rem;}
+.scanner-video {width:100%; aspect-ratio:4/3;object-fit:cover;border-radius:16px;background:linear-gradient(135deg,#142842,#1c4350);margin:1rem 0;}
+.gate-verdict {display:inline-block;font-weight:900;letter-spacing:.11em;padding:.9rem 1.2rem;border-radius:10px;margin-bottom:.7rem;}
+.gate-valid {background:#d3fae8;color:#08714f;}
+.gate-invalid {background:#ffe0e0;color:#ad2531;}
+.attendee-assign-form {display:grid;gap:.4rem;min-width:170px;margin-top:.6rem;}
+.attendee-assign-form .form-control {padding:.5rem;}
+.reveal-ready {opacity:0;transform:translateY(15px);transition:opacity .6s ease,transform .6s ease;}
+.reveal-ready.revealed {opacity:1;transform:none;}
+@media(max-width:760px){
+  .attendee-fields,.gate-grid,.digital-ticket-grid{grid-template-columns:1fr;}
+  .theme-toggle{min-width:37px;height:37px;}
+  .ticket-event-head{align-items:flex-start;}
+  .gate-grid .admin-panel{padding:1rem;}
+}
+@media(prefers-reduced-motion:reduce){
+  .animated-enter,.seat-button.is-selected{animation:none!important;}
+  .reveal-ready{opacity:1!important;transform:none!important;transition:none!important;}
+  .theme-toggle,.seat-button{transition:none!important;}
+}

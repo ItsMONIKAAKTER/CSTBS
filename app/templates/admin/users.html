@@ -3,13 +3,13 @@
 {% block content %}
 <section class="page-heading container admin-page-title">
   <span class="section-kicker">ADMIN / ACCOUNTS</span><h1>User <em>roles.</em></h1>
-  <p>Manage Student IDs and roles. Create 20-minute login keys for existing administrators.</p>
+  <p>Manage Student IDs and roles. Issue one-time activation or recovery keys; all future admin logins use passwords.</p>
 </section>
 <section class="container admin-section">
   {% include 'admin/_nav.html' %}
   <div class="admin-panel">
-    <div class="admin-panel-head"><div><h2>Admin login keys</h2>
-      <p>To add another admin, promote a trusted existing account below. Then generate a 20-minute, one-time login key for that account.</p>
+    <div class="admin-panel-head"><div><h2>Administrator activation keys</h2>
+      <p>To add another admin, promote a trusted existing account below. Then issue a 20-minute, one-time activation key. Already activated admins need an explicit password reset.</p>
     </div></div>
   </div>
   <div class="admin-panel">
@@ -32,7 +32,8 @@
           <form method="post" action="{{ url_for('admin.generate_admin_key') }}" class="role-edit">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="target_user_id" value="{{ user.id }}">
-            <button class="button button-primary button-small" type="submit">Generate login key</button>
+            {% if user.password_ready %}<label class="muted"><input type="checkbox" name="confirm_reset" value="yes" required> Reset existing password</label>{% endif %}
+            <button class="button button-primary button-small" type="submit">{{ 'Reset password via key' if user.password_ready else 'Generate activation key' }}</button>
           </form>
           {% endif %}
           {% if user.id == current_user.id %}<span class="muted">Current account (locked)</span>{% else %}

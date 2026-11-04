@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Verify stadium entry{% endblock %}
+{% block content %}
+<section class="page-heading container animated-enter"><span class="section-kicker">STADIUM GATE / VERIFICATION</span>
+<h1>Entry <em>verification.</em></h1><p>Always match the ticket holder's Student ID with university ID at the gate.</p></section>
+<section class="container ticket-display-wrap"><article class="admin-panel glass-panel">
+{% if ticket %}
+  <div class="gate-verdict {{ 'gate-valid' if ticket.status == 'active' and ticket.booking.status == 'reserved' and ticket.event.checkin_enabled else 'gate-invalid' }}">
+  {% if ticket.status == 'checked_in' %}ALREADY USED{% elif ticket.status == 'cancelled' or ticket.booking.status == 'cancelled' %}CANCELLED{% elif ticket.status == 'unassigned' %}UNASSIGNED{% elif not ticket.event.checkin_enabled %}GATE CLOSED{% else %}VALID TICKET{% endif %}</div>
+  <h2>{{ ticket.event.title }}</h2>
+  <div class="digital-ticket-grid"><div><span>Attendee</span><strong>{{ ticket.attendee_name }}</strong></div>
+   <div><span>Student ID</span><strong>{{ ticket.attendee_student_id }}</strong></div><div><span>Seat</span><strong>{{ ticket.seat.display_label }}</strong></div>
+   <div><span>Ticket</span><strong>#{{ ticket.id }}</strong></div></div>
+  {% if ticket.status == 'active' and ticket.booking.status == 'reserved' and ticket.event.checkin_enabled %}
+   <form method="post" action="{{ url_for('entry.check_in', token=token) }}">
+   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+   <button class="button button-primary button-full" type="submit" data-confirm="Confirm identity and admit this attendee?">Confirm stadium entry</button></form>
+  {% else %}<p class="flash flash-error">Entry is not permitted. Do not admit this attendee.</p>{% endif %}
+{% else %}<div class="gate-verdict gate-invalid">INVALID QR CODE</div><p>Unknown, altered or expired ticket details.</p>{% endif %}
+<a class="button button-secondary" href="{{ url_for('entry.scan') }}">Scan next ticket</a>
+</article></section>
+{% endblock %}

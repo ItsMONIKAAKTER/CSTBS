@@ -16,7 +16,7 @@ def interactive_local_admin_key():
     if app.config.get("APP_ENV") == "production":
         return
     if not sys.stdin.isatty():
-        print("Admin login key: run 'python -m flask --app run.py admin-key EMAIL' "
+        print("Admin activation: run 'python -m flask --app run.py admin-key EMAIL' "
               "or 'python -m flask --app run.py admin-setup' in PowerShell.")
         return
     with app.app_context():
@@ -37,6 +37,9 @@ def interactive_local_admin_key():
                 return
             print_terminal_login_key(user, bootstrap=True)
         else:
+            if all(user.password_ready for user in admins):
+                print("\nAdmins already activated. Sign in at http://127.0.0.1:5000/admin/login")
+                return
             if len(admins) == 1:
                 user = admins[0]
             else:
@@ -50,7 +53,10 @@ def interactive_local_admin_key():
                 if user is None:
                     print("No administrator found for that email. Use the admin-key command.")
                     return
-            print_terminal_login_key(user)
+            if not user.password_ready:
+                print_terminal_login_key(user)
+            else:
+                print("Admin password is already activated. Sign in at /admin/login.")
 
 
 if __name__ == "__main__":

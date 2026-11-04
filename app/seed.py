@@ -48,7 +48,8 @@ def seed_demo_environment():
     """
     import os
     from flask import current_app
-    from .models import Booking, Seat, User
+    import secrets
+    from .models import Booking, Seat, Ticket, User
 
     if current_app.config.get("APP_ENV") == "production":
         raise ValueError("Demo accounts cannot be seeded in production.")
@@ -58,6 +59,8 @@ def seed_demo_environment():
     seed_demo_events()  # Seeds only an empty catalog, never replaces real events.
     demo_accounts = [
         ("demo.student@campus.example", "Demo Student", "student", "DEMO1001"),
+        ("demo.second@campus.example", "Demo Classmate", "student", "DEMO1002"),
+        ("demo.third@campus.example", "Demo Teammate", "student", "DEMO1003"),
         ("demo.staff@campus.example", "Demo Staff", "staff", None),
         ("demo.admin@campus.example", "Demo Administrator", "admin", None),
     ]
@@ -70,7 +73,7 @@ def seed_demo_environment():
             found = User(email=email, full_name=name, role=role, student_id=student_id)
             found.set_password(password)
             db.session.add(found)
-        accounts[role] = found
+        accounts[email] = found
     db.session.flush()
 
     demo_event = db.session.scalar(select(Event).where(Event.title == "Campus Football Night")
@@ -81,19 +84,32 @@ def seed_demo_environment():
     seat_rows = db.session.scalars(select(Seat).where(Seat.event_id == demo_event.id,
         Seat.section == "Main").order_by(Seat.row_label, Seat.number).limit(8)).all()
     inserts = 0
-    desired = [(0, "student", "reserved"), (1, "staff", "reserved"),
-               (2, "student", "cancelled")]
-    for offset, role, status in desired:
+    desired = [
+        (0, "demo.student@campus.example", "reserved"),
+        (1, "demo.second@campus.example", "reserved"),
+        (2, "demo.third@campus.example", "cancelled"),
+    ]
+    for offset, attendee_email, status in desired:
         if offset >= len(seat_rows):
             continue
         seat = seat_rows[offset]
+        student = accounts[attendee_email]
         already = db.session.scalar(select(Booking.id).where(
-            Booking.seat_id == seat.id, Booking.user_id == accounts[role].id).limit(1))
+            Booking.seat_id == seat.id, Booking.user_id == student.id).limit(1))
         seat_taken = db.session.scalar(select(Booking.id).where(
             Booking.seat_id == seat.id, Booking.status == "reserved").limit(1))
-        if already is None and seat_taken is None and not seat.is_blocked:
-            db.session.add(Booking(user_id=accounts[role].id, seat_id=seat.id,
-                status=status, price_at_booking=Decimal("0.00")))
+        existing_attendee = db.session.scalar(select(Ticket.id).where(
+            Ticket.event_id == demo_event.id, Ticket.attendee_user_id == student.id,
+            Ticket.status.in_(["active", "checked_in"])).limit(1))
+        if already is None and seat_taken is None and existing_attendee is None and not seat.is_blocked:
+            booking = Booking(user_id=student.id, seat_id=seat.id,
+                status=status, price_at_booking=Decimal("0.00"))
+            db.session.add(booking)
+            db.session.flush()
+            db.session.add(Ticket(booking_id=booking.id, event_id=demo_event.id,
+                attendee_user_id=student.id, attendee_name=student.full_name,
+                attendee_student_id=student.student_id, nonce=secrets.token_urlsafe(24),
+                status="active" if status == "reserved" else "cancelled"))
             inserts += 1
     # Two visible blocked seats, not reserved and not present in history.
     for seat in seat_rows[3:5]:

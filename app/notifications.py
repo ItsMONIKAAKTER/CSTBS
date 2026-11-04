@@ -32,12 +32,12 @@ def _deliver(subject, recipient, body):
 
 def notify_booking_confirmed(user, event, bookings):
     """Send one summary email after a multi-seat confirmation commits."""
-    names = ", ".join(booking.seat.display_label for booking in bookings)
+    names = ", ".join(f"{booking.seat.display_label} ({booking.ticket.attendee_name})" if booking.ticket else booking.seat.display_label for booking in bookings)
     body = (f"Hello {user.full_name},\n\nYour CSTBS reservation is confirmed.\n\n"
             f"Event: {event.title}\nVenue: {event.venue}\n"
             f"When: {event.starts_at:%Y-%m-%d %H:%M} (campus time)\n"
             f"Seats: {names}\nAdmission: Free (CNY ¥0.00); no payment required.\n\n"
-            "View your reservations by signing in to CSTBS.\n")
+            "View each person's QR ticket by signing in to CSTBS. Do not share QR codes publicly.\n")
     return _deliver(f"CSTBS booking confirmed: {event.title}", user.email, body)
 
 

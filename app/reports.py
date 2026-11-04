@@ -22,7 +22,7 @@ from sqlalchemy.orm import joinedload
 
 from . import db
 from .authz import admin_required
-from .models import Booking, Event, Seat
+from .models import Booking, Event, Seat, Ticket
 
 reports = Blueprint("reports", __name__, url_prefix="/admin/reports")
 EXPORT_MAX_CSV_ROWS = 10000
@@ -226,3 +226,28 @@ def events_export(format):
     subtitle = f"Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC | Live capacity snapshot"
     return _download(_make_pdf("Event inventory report", headings, rows, summary, subtitle),
                      f"cstbs-events-{stamp}.pdf", "application/pdf")
+
+
+@reports.get("/attendance.<format>")
+@login_required
+@admin_required
+def attendance_export(format):
+    """Private attendance audit export, not a public QR validation endpoint."""
+    if format not in ("pdf", "csv"):
+        abort(404)
+    limit = EXPORT_MAX_CSV_ROWS if format == "csv" else EXPORT_MAX_PDF_ROWS
+    results = db.session.scalars(select(Ticket).order_by(Ticket.id.desc()).limit(limit + 1)).all()
+    if len(results) > limit:
+        abort(413, "Narrow the attendance export at the database/reporting layer.")
+    headings = ["Ticket", "Event", "Attendee", "Student ID", "Seat", "Status", "Entry time (UTC)", "Booking owner"]
+    rows = [[str(t.id), t.event.title, t.attendee_name, t.attendee_student_id or "",
+        t.seat.display_label, t.status,
+        t.checked_in_at.strftime("%Y-%m-%d %H:%M") if t.checked_in_at else "",
+        t.booking.user.email] for t in results]
+    summary = f"{len(results)} tickets | {sum(t.status == 'checked_in' for t in results)} checked in"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+    if format == "csv":
+        return _download(_make_csv(headings, rows), f"cstbs-attendance-{stamp}.csv", "text/csv; charset=utf-8")
+    subtitle = f"Generated {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC | Confidential student attendance"
+    return _download(_make_pdf("Stadium attendance report", headings, rows, summary, subtitle),
+                     f"cstbs-attendance-{stamp}.pdf", "application/pdf")

@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}Administrator Login Key{% endblock %}
+{% block title %}Administrator Activation Key{% endblock %}
 {% block content %}
 <section class="page-heading container"><span class="section-kicker">ADMIN / ACCESS</span>
-  <h1>One-time login key</h1>
+  <h1>One-time activation key</h1>
   <p>This key belongs only to <strong>{{ target.email }}</strong>. Copy it privately; the system never displays it again.</p>
 </section>
 <section class="container admin-section"><div class="admin-panel">
-  <p><strong>Expires in 20 minutes.</strong> The key is invalid after one successful login or a replacement key is issued.</p>
+  <p><strong>Expires in 20 minutes.</strong> The key is invalid after one successful activation or a replacement key is issued.</p>
   <div class="invitation-key" role="status">{{ key }}</div>
-  <p>Admin login: <a href="{{ url_for('main.admin_login') }}">{{ url_for('main.admin_login') }}</a></p>
+  <p>Admin activation: <a href="{{ url_for('main.admin_activate') }}">{{ url_for('main.admin_activate') }}</a></p>
   <p class="muted">Never share keys publicly. Only the intended administrator's email can use this key.</p>
   <a class="button button-secondary" href="{{ url_for('admin.users') }}">Back to users</a>
 </div></section>
