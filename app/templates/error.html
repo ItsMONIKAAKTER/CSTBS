@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}{{ code }} · {{ heading }}{% endblock %}
+{% block content %}
+<section class="container error-page">
+  <span class="section-kicker">CSTBS / REQUEST STATUS</span>
+  <p class="error-code">{{ code }}</p>
+  <h1>{{ heading }}</h1>
+  <p>{{ explanation }}</p>
+  <div class="error-actions">
+    <a class="button button-secondary" href="{{ url_for('main.index') }}">Back to home</a>
+    <a class="text-link" href="{{ url_for('main.events') }}">Explore events</a>
+  </div>
+</section>
+{% endblock %}

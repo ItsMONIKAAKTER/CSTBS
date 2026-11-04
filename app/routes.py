@@ -7,7 +7,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from . import db
+from . import db, limiter
 from .authz import admin_required
 from .notifications import notify_booking_confirmed, notify_booking_cancelled
 from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm
@@ -52,6 +52,7 @@ def event_detail(event_id):
 
 
 @main.route("/register", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 25 per hour", methods=["POST"])
 def register():
     """Create a student account and start an authenticated session."""
     if current_user.is_authenticated:
@@ -78,6 +79,7 @@ def register():
 
 
 @main.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 25 per hour", methods=["POST"])
 def login():
     """Verify a stored password hash and authenticate the account."""
     if current_user.is_authenticated:
@@ -233,6 +235,7 @@ def seat_map(event_id):
 
 
 @main.get("/api/events/<int:event_id>/seats")
+@limiter.limit("60 per minute")
 def event_seat_availability(event_id):
     """Return current seat occupancy; poll every 5s for near-real-time state."""
     event = db.get_or_404(Event, event_id)
@@ -269,6 +272,7 @@ def booking_review(event_id):
 
 
 @main.post("/events/<int:event_id>/booking/confirm")
+@limiter.limit("12 per minute")
 @login_required
 def booking_confirm(event_id):
     """Atomically create reservations with a DB-level unique active-seat guard."""

@@ -2,6 +2,31 @@
 
 All notable CSTBS changes are recorded in this file.
 
+## [5.0.0] — 2026-11-01 — Final Release: Reporting, Security, Documentation
+
+### Added
+- Protected administrator report center (`/admin/reports/`) with one-click PDF and CSV exports.
+- Booking report filters for status and event; reports include user, event, seat, booking status, timestamps and price snapshots.
+- Event inventory report with prices, seating totals, active reservations, blocked seats and current availability.
+- Landscape ReportLab PDF output with table headers repeated on each page, confidentiality footer and page numbering.
+- UTF-8 CSV downloads with spreadsheet formula injection escaping, private caching headers and export caps (2,000 PDF / 10,000 CSV rows).
+- Flask-Limiter with a site-wide IP-based limit and stricter rules on auth, availability polling and booking confirmation.
+- Security response headers, 128-KiB request body limit, SQLite foreign key enforcement and production configuration gates.
+- Explicit `flask init-db` deployment command, opt-in non-production `flask seed-demo` with environment-provided password.
+- User Manual, Admin Manual, Installation & Deployment Guide, SECURITY.md and v5.0 release notes.
+- V5 report authorization/format/CSV-injection integration tests, friendly security/error pages and polished dashboard/report UI.
+
+### Changed
+- Registration now requires 12–128-character passwords, event prices have bounded validation, and CSRF tokens expire after one hour.
+- Development server now binds to localhost with debug disabled; production schema updates are run explicitly, not automatically at application startup.
+- Updated the home-page demonstration flow, administrator navigation, README, requirements, UML, database documentation and release packaging.
+
+### Preserved
+- V1 responsive Flask UI; V2 role-based accounts and event CRUD; V3 atomic seat booking/history/cancellation; V4 administration, seat blocks/sections, and Flask-Mail notifications.
+
+### Limitations
+- No payments or issued tickets. SQLite, targeted compatibility migrations, synchronous best-effort email and five-second polling remain sized for single-host/small installations, not high-volume ticket sales. Production deployment requires real operational hardening and acceptance testing.
+
 ## [4.0.0] — 2026-11-01 — Administration
 
 ### Added

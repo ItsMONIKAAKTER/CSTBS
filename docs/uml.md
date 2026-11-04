@@ -1,4 +1,6 @@
-# CSTBS Version 4 — UML (PlantUML)
+# CSTBS Version 5 — UML (PlantUML)
+
+The original V4 diagrams are preserved below; V5 adds reporting and export sequence diagrams.
 
 The following diagrams describe the implemented V4 architecture. Paste any code block into a PlantUML renderer.
 
@@ -201,5 +203,94 @@ Admin --> Notif
 Notif --> Smtp
 Models --> Database
 Migrate --> Database
+@enduml
+```
+
+
+## 5. V5 reporting use case
+
+```plantuml
+@startuml
+left to right direction
+actor Admin
+rectangle "CSTBS Version 5" {
+  usecase "Open reporting center" as Center
+  usecase "Filter booking data" as Filter
+  usecase "Export booking PDF" as BPDF
+  usecase "Export booking CSV" as BCSV
+  usecase "Export event PDF" as EPDF
+  usecase "Export event CSV" as ECSV
+}
+Admin --> Center
+Admin --> Filter
+Admin --> BPDF
+Admin --> BCSV
+Admin --> EPDF
+Admin --> ECSV
+Filter .> BPDF : <<extend>>
+Filter .> BCSV : <<extend>>
+note bottom of Center
+All report actions require authenticated
+admin role; no public report access.
+end note
+@enduml
+```
+
+## 6. V5 report export sequence
+
+```plantuml
+@startuml
+actor Admin
+participant "Browser" as Browser
+participant "Flask report blueprint" as Report
+participant "Role authorization" as Auth
+participant "SQLAlchemy" as ORM
+database SQLite as DB
+participant "ReportLab / CSV writer" as Output
+Admin -> Browser : Click Download (format, filters)
+Browser -> Report : GET /admin/reports/bookings.pdf?status=reserved
+Report -> Auth : login_required + admin_required
+alt user not admin
+  Auth --> Report : Redirect login or 403
+  Report --> Browser : No export
+else admin
+  Report -> Report : Validate filter & maximum rows
+  Report -> ORM : SELECT filtered booking records
+  ORM -> DB : SQL query
+  DB --> ORM : Rows
+  ORM --> Report : Bookings + relationships
+  Report -> Output : Render in memory
+  Output --> Report : BytesIO PDF/CSV
+  Report --> Browser : Attachment + Cache-Control: no-store
+end
+@enduml
+```
+
+## 7. Component structure
+
+```plantuml
+@startuml
+package "CSTBS Flask" {
+  [Main Blueprint] as Main
+  [Admin Blueprint] as Admin
+  [Reports Blueprint] as Reports
+  [Forms + CSRF] as Forms
+  [Flask-Login + roles] as Auth
+  [Flask-Limiter] as Limiter
+  [SQLAlchemy models] as ORM
+  [Flask-Mail] as Mail
+  [ReportLab + CSV] as Render
+}
+database "SQLite" as DB
+Main --> Forms
+Admin --> Auth
+Reports --> Auth
+Main --> Limiter
+Reports --> ORM
+Reports --> Render
+Admin --> ORM
+Main --> ORM
+ORM --> DB
+Main --> Mail
 @enduml
 ```

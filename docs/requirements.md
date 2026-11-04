@@ -1,60 +1,70 @@
-# CSTBS Version 4 — Requirements and Acceptance Criteria
+# CSTBS V5 — Requirements and Verification
 
-## Goal
+## Goal and scope
 
-Extend V3 *Seat Reservations* with a safe, role-protected administration console and development email notifications. Retain accounts, public event catalog, event CRUD, interactive selection, multi-seat reservation and owner cancellation. No payments or ticket fulfilment.
+Integrate V1–V4 accounts, events, seating, reservations, administration and email notifications, then deliver protected PDF/CSV reports, improved security, demo data and full manuals. **No payment processing or issued tickets.**
 
-## Access matrix
+## Role access matrix
 
-| Feature | Visitor | Student | Staff | Admin |
-| --- | --- | --- | --- | --- |
-| Browse events / availability JSON | Yes | Yes | Yes | Yes |
-| Reserve / cancel own seats | No | Yes | Yes | Yes |
-| View dashboard and admin data | No | No | No | Yes |
-| Event CRUD and seating administration | No | No | No | Yes |
-| Manage roles / all bookings | No | No | No | Yes |
+| Capability | Anonymous | Student | Staff | Admin |
+| --- | :---: | :---: | :---: | :---: |
+| Browse events and seat availability | Yes | Yes | Yes | Yes |
+| Create an account/login | Yes | Yes | Yes | Yes |
+| Reserve/cancel own bookings | No | Yes | Yes | Yes |
+| Event CRUD/seat sections/blocks | No | No | No | Yes |
+| Manage roles and all bookings | No | No | No | Yes |
+| Export PDF/CSV reports | No | No | No | Yes |
 
-Public registration cannot choose roles. Admin-only operations require authentication and role enforcement server-side.
+Public registration assigns only student role. Staff is not an administrative role.
 
-## Functional requirements
+## Version 5 functional requirements
 
-| ID | Feature | Acceptance criteria |
+| ID | Requirement | Acceptance criterion |
 | --- | --- | --- |
-| FR4-01 | Admin dashboard | `/admin/` shows KPI totals and recent reservations. Students/staff receive 403; anonymous users go to login. |
-| FR4-02 | Event CRUD | Existing admin create/edit/delete remains available under the admin navigation; newly created event includes 60 default seats; no deletion with any history. |
-| FR4-03 | Seat blocking | Admin can block/unblock a free seat; a reserved seat cannot be blocked. Public availability excludes blocked seats and JS marks them clearly. |
-| FR4-04 | Sections | Admin can add a uniquely named section (1–20 rows, 1–30 seats each), rename it, and delete it only when it has no booking history. |
-| FR4-05 | User roles | Admin can promote/demote another registered user among student/staff/admin; cannot change their own role or remove the sole admin via UI. |
-| FR4-06 | All bookings | Admin sees reserved/cancelled bookings across all users with event/status filters and pagination. |
-| FR4-07 | Administrative cancellation | Admin can cancel active bookings and retain history. Duplicate cancellation doesn't resend email. |
-| FR4-08 | Confirmation notification | Successful checkout sends one email (or prints preview) with event, seats, time and informational total, after commit. |
-| FR4-09 | Cancellation notification | Owner and admin cancellation send one email/preview to booking owner after commit. |
-| FR4-10 | Email configuration | Flask-Mail supports console preview without SMTP and Ethereal SMTP via environment variables, no hardcoded secrets. |
-| FR4-11 | Upgrade compatibility | Existing V3 SQLite seats gain `is_blocked=0` by non-destructive startup schema upgrade. Booking history remains. |
-| FR4-12 | Integrity | Database protects against double-booking, reserving blocked seats and blocking active bookings, including racing writes. |
-| FR4-13 | Preservation | All V1–V3 routes, sessions, event catalog, roles, user booking history and cancellation continue to work. |
+| FR5-01 | Admin report hub | `/admin/reports/` is linked from admin tabs and dashboard. |
+| FR5-02 | Booking PDF | `GET /admin/reports/bookings.pdf` returns a PDF attachment with IDs, times, event, owner, seat, status and saved price; repeated table header and page footer. |
+| FR5-03 | Event PDF | `GET /admin/reports/events.pdf` returns inventory and occupancy report, including available seats. |
+| FR5-04 | Booking CSV | Same booking fields, UTF-8 BOM, CSV quoting and formula-escape on dangerous user fields. |
+| FR5-05 | Event CSV | Same event fields and calculated capacity counts; no personal records beyond admin-only access. |
+| FR5-06 | Filters | Booking status is all/reserved/cancelled; event ID numeric or omitted; invalid values return 400. |
+| FR5-07 | Authorization and privacy | Guests redirect to login; non-admins receive 403. Downloads are private/no-store and capped at 2,000 PDF or 10,000 CSV rows. |
+| FR5-08 | Rate limiting | Login/register POSTs, confirmation POSTs and availability polls have explicit IP-based limits; other pages use a global limit. |
+| FR5-09 | Security checks | CSRF on mutations; bounded form values; security headers; 128-KiB request limit; secure cookie, trusted host and shared limiter store required in production. |
+| FR5-10 | Demonstration | `seed-events` remains idempotent; `seed-demo` creates fictional users, a sample booking history and blocked seats only in development with a private password. |
+| FR5-11 | Manuals | Complete user, admin, installation/deployment and security guides ship in repository. |
+| FR5-12 | Compatibility | V1–V4 routes and models preserved; no new table required for V5 reports. |
+
+## Retained critical invariants
+
+1. A booking reserves exactly one event seat; a multi-seat confirmation saves all bookings in one transaction.
+2. An active seat is allocated to at most one booking (SQLite partial unique index).
+3. A blocked seat may not be reserved and a reserved seat may not be blocked (three SQLite triggers).
+4. Only owners cancel their own bookings; administrators may cancel any booking; history is never deleted.
+5. Email notifications follow successful commits and failures cannot roll back bookings.
+6. Admin-only UI uses per-action POST/CSRF; all data exports require fresh role authorization.
 
 ## Non-functional requirements
 
-- **Security:** admin-only routes, CSRF on mutations, parameter/enum validation, no public role elevation, no secrets in source, ownership restrictions on personal booking routes.
-- **Integrity:** SQLite partial unique active-seat index and block-state triggers. Cancellation preserves booking records and historical price snapshots.
-- **Accessibility:** native form controls, focus states, page headings, labelled seat buttons, responsive tables and sectioned map.
-- **Performance:** booking admin uses pages of 25 rows; dashboards use aggregate SQL. Seat polling remains every 5 seconds, no WebSockets.
-- **Mail durability:** an email failure cannot roll back an already confirmed booking. Delivery is best-effort and log-based; no outbox or retry service yet.
+- Maintainability: application factory, separated report/notification/seed services, templates, tests and documentation.
+- Accessibility: semantic forms, clear seat states, keyboard-operable buttons, responsive reporting controls.
+- Performance: SQL aggregation for report counts; paginated bookings UI; row-limited exports.
+- Privacy: no-store on report downloads, CSV formula mitigation, no hardcoded credentials and local DB excluded from Git.
+- Deployment: Gunicorn behind HTTPS, dedicated low-privilege user, private SQLite volume, Redis rate limiting and protected SMTP; no `debug=True`.
+- Availability: polling every five seconds is near-real-time; no seat holds or live push.
 
-## Manual acceptance checklist
+## V5 acceptance checklist
 
-- [ ] As student or staff, all `/admin/` pages return HTTP 403 after sign-in; anonymous users redirect to login.
-- [ ] As admin, create, edit and delete an unbooked event; booked event deletion is refused.
-- [ ] Create a new `West Stand` section, rename it, block/unblock a free seat, and inspect the public availability API and map.
-- [ ] Confirm bookings cannot reserve blocked seats; verify a reserved seat cannot be blocked.
-- [ ] Promote student to staff, then admin; verify another admin can change their role, but not their own.
-- [ ] Filter all bookings by event/status; cancel a student's active reservation as admin.
-- [ ] Confirm one email preview appears after checkout, and another after cancellation; repeated cancellation doesn't send another.
-- [ ] Try SMTP with Ethereal test credentials; ensure no credentials are printed.
-- [ ] Upgrade a backed-up V3 SQLite DB and verify existing bookings/seats remain intact and `is_blocked` defaults false.
-- [ ] Run `python -m unittest discover -s tests -v` and smoke-test small screens.
+- [ ] Guest is redirected from all report endpoints, student/staff receive 403.
+- [ ] Admin can download nonempty booking PDF and event PDF (start with `%PDF-`).
+- [ ] Both CSV exports open correctly; formula-looking values are prefixed with apostrophe.
+- [ ] Invalid status/event report filters are rejected; cancelled filtering works.
+- [ ] Report attachment and Cache-Control private/no-store headers are present.
+- [ ] Registration/login rate limits show 429 after repeated requests (in rate-limiting-enabled environment).
+- [ ] All write routes reject missing CSRF token; sessions use secure settings when deployed.
+- [ ] All V1–V4 unit/integration tests pass after installation.
+- [ ] Fresh seed and demo seed are repeatable without creating duplicate active reservations.
+- [ ] PDF report, README, manuals, UML, changelog and GitHub release description are included in ZIP.
 
-## Explicit exclusions
+## Explicit exclusions and deployment warning
 
-No payments, refunds, QR ticket issuance, email queue/retry service, irreversible deletion of bookings, complex seating geometry, external identity provider, migration framework, audit log, or production deployment system.
+No payments, QR tickets, refunds, durable email queue, password reset, MFA, distributed seat holds, certified student privacy compliance or full schema migration framework. SQLite and polling remain appropriate for limited load only. A publicly exposed campus system requires independent security review and operational acceptance.

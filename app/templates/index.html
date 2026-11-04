@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 {% from '_event_card.html' import event_card %}
-{% block title %}Home{% endblock %}
+{% block title %}Home<section class="section">
+  <div class="container">
+    <div class="section-heading"><div><span class="section-kicker">HOW IT WORKS</span><h2>Three steps to your seat</h2><p>A simple journey from discovering an event to reserving your place.</p></div></div>
+    <div class="workflow-grid">
+      <div class="workflow-step"><span class="workflow-num">01 / DISCOVER</span><strong>Choose an event</strong><p>Explore upcoming campus games, showcases and performances.</p></div>
+      <div class="workflow-step"><span class="workflow-num">02 / SELECT</span><strong>Pick your seats</strong><p>Use the interactive seating map and review current availability.</p></div>
+      <div class="workflow-step"><span class="workflow-num">03 / CONFIRM</span><strong>Reserve your place</strong><p>Save the booking and find it any time under My bookings.</p></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
 {% block content %}
 <section class="hero">
     <div class="container hero-grid">
@@ -38,8 +48,18 @@
 <section class="section section-muted">
     <div class="container info-banner">
         <div class="info-icon" aria-hidden="true">✦</div>
-        <div><h2>Built for campus life.</h2><p>Find event dates, venues, and entry prices in one simple place. Now featuring seat reservations, booking history and account management.</p></div>
+        <div><h2>Built for campus life.</h2><p>Find event dates, venues, and entry prices in one simple place. Reserve seats, manage bookings and receive confirmation updates in one easy-to-use experience.</p></div>
         <a class="button button-secondary" href="{{ url_for('main.events') }}">Browse events</a>
     </div>
+</section>
+<section class="section">
+  <div class="container">
+    <div class="section-heading"><div><span class="section-kicker">HOW IT WORKS</span><h2>Three steps to your seat</h2><p>A simple journey from discovering an event to reserving your place.</p></div></div>
+    <div class="workflow-grid">
+      <div class="workflow-step"><span class="workflow-num">01 / DISCOVER</span><strong>Choose an event</strong><p>Explore upcoming campus games, showcases and performances.</p></div>
+      <div class="workflow-step"><span class="workflow-num">02 / SELECT</span><strong>Pick your seats</strong><p>Use the interactive seating map and review current availability.</p></div>
+      <div class="workflow-step"><span class="workflow-num">03 / CONFIRM</span><strong>Reserve your place</strong><p>Save the booking and find it any time under My bookings.</p></div>
+    </div>
+  </div>
 </section>
 {% endblock %}
