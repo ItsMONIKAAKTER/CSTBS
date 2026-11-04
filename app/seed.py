@@ -16,13 +16,13 @@ def seed_demo_events():
         return 0
 
     samples = [
-        (7, 18, 30, "Campus Football Night", "Football", "Main Stadium", "18.00",
+        (7, 18, 30, "Campus Football Night", "Football", "Main Stadium", "0.00",
          "Cheer for the home team under the stadium lights. Enjoy a spirited evening of campus football, student traditions, and community energy."),
         (12, 10, 0, "Track & Field Showcase", "Athletics", "Athletics Oval", "0.00",
          "Watch student athletes compete in sprints, relays, and field events. A welcoming daytime gathering for the whole campus."),
-        (19, 16, 0, "Alumni Soccer Classic", "Soccer", "Main Stadium", "12.00",
+        (19, 16, 0, "Alumni Soccer Classic", "Soccer", "Main Stadium", "0.00",
          "Celebrate a friendly match that brings alumni and current students together for an afternoon of stadium excitement."),
-        (26, 19, 0, "Stadium Music Fest", "Music", "Main Stadium", "24.00",
+        (26, 19, 0, "Stadium Music Fest", "Music", "Main Stadium", "0.00",
          "Experience live performances from student bands and campus artists at an open-air evening show."),
     ]
 
@@ -57,17 +57,17 @@ def seed_demo_environment():
         raise ValueError("Set DEMO_SEED_PASSWORD in your private .env (12-128 characters) first.")
     seed_demo_events()  # Seeds only an empty catalog, never replaces real events.
     demo_accounts = [
-        ("demo.student@campus.example", "Demo Student", "student"),
-        ("demo.staff@campus.example", "Demo Staff", "staff"),
-        ("demo.admin@campus.example", "Demo Administrator", "admin"),
+        ("demo.student@campus.example", "Demo Student", "student", "DEMO1001"),
+        ("demo.staff@campus.example", "Demo Staff", "staff", None),
+        ("demo.admin@campus.example", "Demo Administrator", "admin", None),
     ]
     accounts = {}
-    for email, name, role in demo_accounts:
+    for email, name, role, student_id in demo_accounts:
         found = db.session.scalar(select(User).where(User.email == email))
         if found is not None and (found.role != role or not found.check_password(password)):
             raise ValueError(f"Demo email {email} already exists with different credentials or role.")
         if found is None:
-            found = User(email=email, full_name=name, role=role)
+            found = User(email=email, full_name=name, role=role, student_id=student_id)
             found.set_password(password)
             db.session.add(found)
         accounts[role] = found
@@ -93,7 +93,7 @@ def seed_demo_environment():
             Booking.seat_id == seat.id, Booking.status == "reserved").limit(1))
         if already is None and seat_taken is None and not seat.is_blocked:
             db.session.add(Booking(user_id=accounts[role].id, seat_id=seat.id,
-                status=status, price_at_booking=demo_event.price))
+                status=status, price_at_booking=Decimal("0.00")))
             inserts += 1
     # Two visible blocked seats, not reserved and not present in history.
     for seat in seat_rows[3:5]:

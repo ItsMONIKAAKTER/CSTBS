@@ -7,7 +7,6 @@ are generated in memory rather than written into the public static directory.
 
 import csv
 from datetime import datetime, timezone
-from decimal import Decimal
 from io import BytesIO, StringIO
 from xml.sax.saxutils import escape
 
@@ -76,23 +75,22 @@ def _event_records(max_rows):
 
 
 def _booking_table(records):
-    headings = ["Booking ID", "Created (UTC)", "Event", "Seat", "User", "Email", "Status", "Price USD"]
+    headings = ["Booking ID", "Created (UTC)", "Event", "Seat", "User", "Email", "Status", "Admission (CNY)"]
     rows = [
         [str(b.id), b.created_at.strftime("%Y-%m-%d %H:%M"), b.event.title,
          b.seat.display_label, b.user.full_name, b.user.email,
-         b.status, f"{b.price_at_booking:.2f}"]
+         b.status, "0.00"]
         for b in records
     ]
-    active_amount = sum((b.price_at_booking for b in records if b.status == "reserved"), Decimal("0"))
-    summary = f"{len(records)} bookings | {sum(b.status == 'reserved' for b in records)} active | Active value: ${active_amount:.2f} (no payment collected)"
+    summary = f"{len(records)} bookings | {sum(b.status == 'reserved' for b in records)} active | University admission free (CNY 0.00)"
     return headings, rows, summary
 
 
 def _event_table(records):
-    headings = ["Event ID", "Event", "Category", "Venue", "Start (campus)", "Price USD", "Seats", "Reserved", "Blocked", "Available"]
+    headings = ["Event ID", "Event", "Category", "Venue", "Start (campus)", "Admission (CNY)", "Seats", "Reserved", "Blocked", "Available"]
     rows = [
         [str(event.id), event.title, event.category, event.venue,
-         event.starts_at.strftime("%Y-%m-%d %H:%M"), f"{event.price:.2f}",
+         event.starts_at.strftime("%Y-%m-%d %H:%M"), "0.00",
          str(total), str(reserved), str(blocked), str(max(total - reserved - blocked, 0))]
         for event, total, blocked, reserved in records
     ]

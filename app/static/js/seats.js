@@ -12,7 +12,6 @@
   const reviewButton = document.getElementById('review-button');
   const status = document.getElementById('seat-status');
   const summary = document.getElementById('availability-summary');
-  const price = Number(form.dataset.price);
 
   const render = () => {
     const chosen = buttons.filter(button => selected.has(button.dataset.seatId));
@@ -21,9 +20,7 @@
     labels.textContent = chosen.length
       ? chosen.map(button => button.dataset.label).join(' · ')
       : 'No seats selected yet';
-    totalPrice.textContent = new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD'
-    }).format(price * chosen.length);
+    totalPrice.textContent = '¥0.00'; // Campus reservations are always free.
     reviewButton.disabled = chosen.length === 0;
     for (const button of buttons) {
       const isSelected = selected.has(button.dataset.seatId);

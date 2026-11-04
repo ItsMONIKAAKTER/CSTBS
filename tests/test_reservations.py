@@ -86,7 +86,7 @@ class ReservationTests(unittest.TestCase):
         self.login(self.client, "one@example.edu")
         review = self.review(self.client, self.ids[:2])
         self.assertEqual(review.status_code, 200)
-        self.assertIn(b"$30.00", review.data)
+        self.assertIn("¥0.00".encode(), review.data)
         result = self.confirm(self.client)
         self.assertEqual(result.status_code, 302)
         self.assertEqual(db.session.scalar(select(func.count(Booking.id))), 2)

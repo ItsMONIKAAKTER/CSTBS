@@ -10,7 +10,7 @@
             <div class="event-card-info">
                 <h3>{{ event.title }}</h3>
                 <p>{{ event.venue }} · {{ event.starts_at.strftime('%I:%M %p').lstrip('0') }}</p>
-                <div class="card-bottom"><span>{% if event.price == 0 %}Free entry{% else %}${{ '%.2f'|format(event.price) }}{% endif %}</span><span class="card-arrow" aria-hidden="true">↗</span></div>
+                <div class="card-bottom"><span>Free admission</span><span class="card-arrow" aria-hidden="true">↗</span></div>
             </div>
         </div>
     </a>

@@ -4,7 +4,7 @@
 <section class="page-heading container">
     <span class="section-kicker">ADMIN CONSOLE</span>
     <h1>{{ heading }}</h1>
-    <p>Event information will appear immediately in the public catalog.</p>
+    <p>Event information will appear in the public catalog. University admissions are always free (¥0.00).</p>
 </section>
 <section class="container admin-form-section">
     {% include "admin/_nav.html" %}
@@ -12,13 +12,11 @@
         <form method="post" novalidate>
             {{ form.hidden_tag() }}
             {% if form.csrf_token.errors %}<p class="field-error" role="alert">Form security check failed. Refresh and try again.</p>{% endif %}
-            {% for field in [form.title, form.category, form.description, form.venue, form.starts_at, form.price] %}
+            {% for field in [form.title, form.category, form.description, form.venue, form.starts_at] %}
             <div class="form-field">
                 {{ field.label }}
                 {% if field.name == 'description' %}
                     {{ field(class='form-control form-textarea', rows=5, placeholder='Describe the event') }}
-                {% elif field.name == 'price' %}
-                    {{ field(class='form-control', min='0', step='0.01', placeholder='0.00') }}
                 {% else %}
                     {{ field(class='form-control') }}
                 {% endif %}

@@ -1,3 +1,17 @@
+# V5.1 Database Additions — Student IDs & Admin Invitations
+
+**User** adds nullable `student_id VARCHAR(20) UNIQUE`. New student registration requires a value, uppercase-normalized to 6–20 ASCII letters/digits. Existing accounts without IDs remain valid while upgrading. Admins and staff do not require IDs. Unique index `uq_users_student_id` prevents duplicates even when concurrent registrations race.
+
+**AdminInvitation** is a new SQLAlchemy model/table `admin_invitations` with `id`, `token_hash` (64 hex chars, unique), `bootstrap` (boolean), `created_by_id` (nullable User FK), `used_by_id` (nullable User FK), `created_at`, `expires_at`, and `used_at`. Hashing uses HMAC-SHA256 with Flask `SECRET_KEY`; **no raw invitation is stored**. A guarded SQL UPDATE changes `used_at` once. A bootstrap invitation is accepted only while there are no other administrators.
+
+**Event.price** and **Booking.price_at_booking** columns remain for schema compatibility. On upgrade all event catalog price values are normalized to `0`. All newly created booking snapshots are `0`. Legacy Booking snapshots are retained (not interpreted as money collected or shown in UI or reports). Display currency is RMB (CNY, ¥), and no payment processing exists.
+
+**SQLite migration:** `app/migrations_v51.py` runs as part of schema initialization; it adds the nullable ID column and unique index and updates event prices. `db.create_all()` creates `admin_invitations` for new/legacy databases. This is intentionally idempotent for V5 SQLite databases; backup and test before use. Production requires explicit `flask init-db`.
+
+---
+
+## V5 database design (historical context)
+
 # CSTBS Version 5 — SQLAlchemy and SQLite Design
 
 ## Entity relationships

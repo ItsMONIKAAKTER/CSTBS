@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Admin registration{% endblock %}
+{% block content %}
+<section class="auth-section"><div class="auth-card">
+  <span class="section-kicker">SECURE CAMPUS ADMINISTRATION</span>
+  <h1>Register an administrator</h1>
+  <p class="auth-subtitle">Enter your one-time administrator key. The initial key is printed once in the local server terminal; later keys are issued by existing admins.</p>
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    {% if form.csrf_token.errors %}<p class="field-error">Security token expired. Refresh this page.</p>{% endif %}
+    {% for field in [form.full_name, form.email, form.admin_key, form.password, form.confirm_password] %}
+      <div class="form-field">{{ field.label }} {{ field(class='form-control', autocomplete=('new-password' if field.name in ['password','confirm_password'] else 'off')) }}
+      {% for error in field.errors %}<p role="alert" class="field-error">{{ error }}</p>{% endfor %}</div>
+    {% endfor %}
+    {{ form.submit(class='button button-primary button-full') }}
+  </form>
+  <p class="auth-switch">Student? <a href="{{ url_for('main.register') }}">Use student registration</a></p>
+</div></section>
+{% endblock %}

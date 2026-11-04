@@ -1,3 +1,32 @@
+# User Manual — CSTBS v5.1 University Reservations
+
+## Student registration
+
+1. Open the website, select **Student register** (or `/register`).
+2. Enter full name, university email, **Student ID** (6–20 letters/digits), and a password of 12–128 characters twice.
+3. Student ID must be unique. Lowercase letters are normalized to uppercase. The server never grants admin rights through the student registration form.
+4. On success, you are signed in and redirected to **My account**. If you already have an account from V5, sign in as usual and add your Student ID under the account profile if it is missing.
+
+## Login
+
+Admins, students and staff sign in using the same email/password form. Administrators can register only with a separate invitation key on **Admin register**.
+
+## Browse and reserve seats (free)
+
+1. Go to **Events**, select an upcoming event, and choose **Choose seats**.
+2. Select 1–6 available seats from the responsive map. Blocked and occupied seats cannot be chosen.
+3. Review the selection; **admission is free (¥0.00)** and no payment is requested.
+4. Confirm your reservation. The server verifies availability again; another booking might occupy a seat during review.
+5. View or cancel your own reservations in **My bookings**. Successful bookings/cancellations trigger an email preview (console) or configured SMTP message.
+
+## Privacy and assistance
+
+Protect your credentials and Student ID. The university administrator can correct a Student ID or help manage accounts. You cannot create an admin role by submitting a different role value in a web form. Downloaded booking reports are only accessible to authorized admins.
+
+---
+
+## Previous V5 user manual (archived context)
+
 # CSTBS v5.0 — User Manual
 
 **Audience:** students, staff, and administrators using the public website. No payment is collected by CSTBS; a confirmed booking reserves seat inventory only.

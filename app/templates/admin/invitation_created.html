@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}New administrator key{% endblock %}
+{% block content %}
+<section class="page-heading container"><span class="section-kicker">ADMIN / INVITATIONS</span><h1>One-time administrator key</h1><p>This key is shown only once. Copy it now and share it privately with the intended administrator.</p></section>
+<section class="container admin-section"><div class="admin-panel">
+  <p><strong>Expires in 60 minutes.</strong> A successful registration invalidates the key immediately.</p>
+  <div class="invitation-key" role="status">{{ key }}</div>
+  <p>New administrator registration: <a href="{{ url_for('main.register_admin') }}">{{ url_for('main.register_admin') }}</a></p>
+  <p class="muted">Never paste a key into a public issue, repository, screenshot, or chat. Returning to this page will not reveal the key again.</p>
+  <a class="button button-secondary" href="{{ url_for('admin.users') }}">Back to user management</a>
+</div></section>
+{% endblock %}

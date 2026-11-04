@@ -21,7 +21,8 @@
             </div>
             {{ form.submit(class='button button-primary button-full') }}
         </form>
-        <p class="auth-switch">New to CSTBS? <a href="{{ url_for('main.register') }}">Create an account</a></p>
+        <p class="auth-switch">Student? <a href="{{ url_for('main.register') }}">Register with Student ID</a></p>
+        <p class="auth-switch">Administrator? <a href="{{ url_for('main.register_admin') }}">Register with an admin key</a></p>
     </div>
 </section>
 {% endblock %}
