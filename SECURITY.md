@@ -1,44 +1,9 @@
-# Security Notes — CSTBS v5.1
+# Security Guidance — CSTBS v5.2
 
-- Initial administrator registration requires physical/terminal access in development. A random, time-limited key is printed once when no admin exists; production provisioning is explicit via `flask reset-bootstrap-key`.
-- Invites use `secrets.token_urlsafe` and HMAC-SHA256 keyed fingerprints, one-hour expiry, single-use transactional consumption, a no-store display, CSRF and per-IP request limits. **Do not disclose terminal output or invitation pages**.
-- `/admin/admin-invitations/new` and Student ID editing are role restricted. A forged registration `role`, student ID duplicate or client booking price is never trusted.
-- Existing Student IDs are unique, uppercase-normalized; admin reports containing PII must be protected as personal data. Avoid storing Student IDs in app logs or public screenshots.
-- University admissions are free (CNY ¥0.00). No payment processors, payment accounts, cards, or refund logic should be configured.
-
----
-
-## Previous V5 security guidance
-
-# Security Policy — CSTBS v5.0
-
-CSTBS v5.0 is a learning/reference deployment with strong baseline web controls, not a payment or production-scale ticket platform. Review and test security against your institution's requirements before public access.
-
-## Implemented controls
-
-- Werkzeug hashed passwords (never store plaintext), Flask-Login sessions and student/staff/admin authorization checks.
-- Global Flask-WTF CSRF validation on state-changing requests, including booking review/confirmation and admin modifications.
-- IP-based Flask-Limiter defaults: 300/hour, with tighter registration/login POST, seat polling and confirm limits. Limit stores must be shared between workers.
-- Host allowlist required in production, HTTPS-only session cookies and HSTS, `SameSite=Lax`/HttpOnly, CSP, no frames, MIME-sniff prevention and maximum POST payload sizes.
-- Server-side seat validity and ownership validation; SQLite partial unique active-seat index, blocked-seat triggers and foreign-key checks.
-- PDF/CSV exports restricted to admins; CSV cells protected from formula injection; report responses disable caching and cap size.
-- No secrets or real SQLite data included in Git; `.env`, instance DB and caches are ignored.
-
-## Before deploying to real campus users
-
-1. Require and test HTTPS, private secret storage, Redis-backed rate limiting, trusted hostnames and an approved SMTP sender.
-2. Threat-model account recovery, admin account onboarding, log privacy, credential stuffing, password reset, confirmation emails and escalation prevention.
-3. Add reviewed schema migrations, production-grade DB with concurrency testing, detailed administrative audit logs, retention/privacy policy and backups.
-4. Use dependency scanning, a pinned lockfile, patch management and automated CI/security tests.
-5. Restrict data exports and logs containing student or reservation personal data; arrange approved access and deletion practices.
-6. Confirm actual source IP handling through your reverse proxy, never blindly trust forwarded-IP headers.
-
-## Known limits
-
-- Synchronous best-effort email; no durable outbox, delivery guarantee or retry.
-- No MFA, password reset, temporary booking holds or payment/identity verification.
-- SQLite is suitable for low volume and local demos, not high-traffic onsales.
-- CSP allows inline *styles* to support the inherited seat-grid column CSS variable, but disallows inline scripts.
-- Rate limits using in-memory storage are appropriate only in local single-process development.
-
-If you identify a vulnerability, **do not publish account credentials or personal data in a public GitHub issue**. Report it privately to the repository maintainer using the host platform's private vulnerability reporting channel if configured.
+- **Administrator key authentication:** `/admin/login` only verifies previously approved administrator accounts. Keys are generated with secure random bytes, stored as secret-keyed HMAC fingerprints, expire in 20 minutes, are email-bound and are atomically single-use. New keys revoke older unused keys for the same admin. The former `/register/admin` endpoint is retired.
+- **No Notepad keys:** First local admin email/name is entered in the terminal; all admin login keys are printed in the trusted terminal or shown once on an admin-only, no-cache page. They never need to be pasted into code, `.env` or the database.
+- **Private local secret:** Only in development, when no valid `SECRET_KEY` is configured, a persistent random key is written to `instance/.local_secret_key`; this path is Git-ignored. Production refuses to generate a secret automatically.
+- **Privileged terminal:** A user with access to the application terminal and its data can provision a first admin or issue keys to existing admins. Protect OS accounts, terminal logs and any admin key display. Do not expose terminal output over a public service or include it in screenshots.
+- **Session and request protection:** Flask-Login, CSRF on POSTs, rate limits and role checks continue to apply. Students use password hashes and required unique Student IDs. Admin password sign-in is disabled in favor of login keys.
+- **Privacy:** Restrict DB files, student IDs, exported PDF/CSV reports, booking notifications and administrator console output. Make backups before migrations; preserve existing booking records.
+- **Deployment:** Use university SSO with MFA for public multi-admin operation. Configure HTTPS, trusted hosts, secure cookies, shared rate-limit storage, real SMTP and auditing. SQLite and the local operator key workflow suit campus demos and limited deployments, not production-scale public ticketing without further work.

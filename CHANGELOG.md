@@ -1,113 +1,35 @@
-# Changelog — CSTBS v1.0 to v5.1
+# CSTBS CHANGELOG
 
-## [5.1.0] — University Accounts & Free Reservations
-
-### Added
-- Student self-registration with required, unique uppercase-normalized Student ID (6–20 letters/digits).
-- Key-protected administrator registration, one-time HMAC-hashed admin invitations and 60-minute expiry.
-- Initial development admin key displayed in the terminal; secure CLI reset for lost/expired keys.
-- Website-based admin invitation generation and student ID administration.
-- Legacy student self-service profile completion and new invitation audit metadata.
-- Automated V5.1 registration/free-admission tests, updated manuals, UML and database design.
+## v5.2 — Simplified Administrator Login (2026-11-01)
 
 ### Changed
-- All university admission and new bookings are free (CNY ¥0.00), with no payment processing.
-- Event admin CRUD no longer exposes a price field. New seeded events and sample bookings cost 0.
-- Existing event catalog pricing is set to zero on SQLite upgrade; historical booking price snapshots remain for database compatibility but do not imply charges.
-- Reports and emails describe free admission, not revenue, USD, or payments.
+- Removed public administrator registration. The old GET `/register/admin` redirects to `/admin/login`; POST registration is not available.
+- A first-run local terminal prompt provisions the first administrator and prints their one-time access key (no editing source, `.env`, Notepad or database).
+- Existing admins sign in using their **email + 20-minute, one-time access key**; successful login redirects to `/admin/`. Admin password login is disabled.
+- Existing admin roles and bookings preserved; V5.1 unbound registration tokens invalidated during schema update.
+- Admin Dashboard > Users generates a targeted key only for existing admin accounts. A trusted admin may first promote a user.
+- Added interactive CLI `flask admin-setup` and `flask admin-key EMAIL` for setup/recovery.
+- Local development auto-generates a stable private Flask secret in `instance/` if not configured. Production requires explicit secure settings.
 
-### Security
-- Bootstrap keys do not grant additional admins after first registration.
-- Admin keys are secret, single-use, expire after 60 minutes, and are never persisted in plaintext.
-- Role and Student ID access restrictions, unique IDs, CSRF, and rate limiting are enforced on the server.
+### Added security and quality
+- Email-bound tokens, hashed token fingerprints, single use and time-based expiry; new token revokes prior unused tokens for that admin.
+- New admin login form and tests for replay, expiration, wrong email, invalid roles, CSRF, admin access and booking regression.
+- Updated Windows setup, manuals, diagrams and GitHub release notes.
 
----
+## v5.1 — University Accounts & Free Reservations
+- Unique mandatory Student IDs, one-time administrator registration invitations (replaced by V5.2), free campus admission, RMB display.
 
-# Changelog
+## v5.0 — Final Reporting, Security & Documentation
+- PDF and CSV admin exports, rate limiting, security headers, complete manuals and demo improvements.
 
-All notable CSTBS changes are recorded in this file.
+## v4.0 — Administration
+- Dashboard, seat/section blocking, user role and all-booking management, booking email notifications.
 
-## [5.0.0] — 2026-11-01 — Final Release: Reporting, Security, Documentation
+## v3.0 — Seat Reservations
+- Interactive seats, availability polling, booking checkout/history/cancellation, conflict prevention.
 
-### Added
-- Protected administrator report center (`/admin/reports/`) with one-click PDF and CSV exports.
-- Booking report filters for status and event; reports include user, event, seat, booking status, timestamps and price snapshots.
-- Event inventory report with prices, seating totals, active reservations, blocked seats and current availability.
-- Landscape ReportLab PDF output with table headers repeated on each page, confidentiality footer and page numbering.
-- UTF-8 CSV downloads with spreadsheet formula injection escaping, private caching headers and export caps (2,000 PDF / 10,000 CSV rows).
-- Flask-Limiter with a site-wide IP-based limit and stricter rules on auth, availability polling and booking confirmation.
-- Security response headers, 128-KiB request body limit, SQLite foreign key enforcement and production configuration gates.
-- Explicit `flask init-db` deployment command, opt-in non-production `flask seed-demo` with environment-provided password.
-- User Manual, Admin Manual, Installation & Deployment Guide, SECURITY.md and v5.0 release notes.
-- V5 report authorization/format/CSV-injection integration tests, friendly security/error pages and polished dashboard/report UI.
+## v2.0 — Accounts & Events
+- Flask-Login authentication, Werkzeug password hashes, student/staff/admin roles, admin event CRUD.
 
-### Changed
-- Registration now requires 12–128-character passwords, event prices have bounded validation, and CSRF tokens expire after one hour.
-- Development server now binds to localhost with debug disabled; production schema updates are run explicitly, not automatically at application startup.
-- Updated the home-page demonstration flow, administrator navigation, README, requirements, UML, database documentation and release packaging.
-
-### Preserved
-- V1 responsive Flask UI; V2 role-based accounts and event CRUD; V3 atomic seat booking/history/cancellation; V4 administration, seat blocks/sections, and Flask-Mail notifications.
-
-### Limitations
-- No payments or issued tickets. SQLite, targeted compatibility migrations, synchronous best-effort email and five-second polling remain sized for single-host/small installations, not high-volume ticket sales. Production deployment requires real operational hardening and acceptance testing.
-
-## [4.0.0] — 2026-11-01 — Administration
-
-### Added
-- Role-protected admin dashboard with user/event/active-booking/blocked-seat totals and recent reservation activity.
-- Admin seating panel with block/unblock actions, section creation/renaming/deletion, and reserved-seat/booking-history safety guards.
-- Administrator role editor for student/staff/admin access, denying self-demotion and removal of the final admin.
-- Filterable, paginated all-user booking management and admin cancellation without deleting historical records.
-- Booking confirmation and cancellation email notifications built with Flask-Mail; development console preview and optional Ethereal SMTP settings.
-- SQLite seat-blocking column migration and triggers enforcing blocked-seat versus active-booking invariants during concurrent writes.
-- Admin blueprint, notification service, authorization helper and V4 admin integration tests.
-- Updated admin UI, sectioned public seat map, requirements, UML, database guide, README, email-development instructions and release notes.
-
-### Changed
-- Availability JSON includes `blocked_seat_ids`; available count excludes both blocked and reserved seats.
-- Reservation checkout refuses blocked seats in review and confirmation; notification delivery follows DB commit and does not roll back reservations on mail failure.
-- Main navigation leads administrators to the new dashboard; V2 event CRUD paths and V3 reservation paths are preserved.
-
-### Not included
-- Payments, tickets or refunds; real-time socket pushes; background mail delivery/retries; production data migrations, audit trails or distributed locking.
-
-## [3.0.0] — 2026-11-01 — Seat Reservations
-
-### Added
-- Interactive mobile-friendly seat selection grid (60 default seats per event) with native button navigation, seat legend, selection summary, and six-seat limit.
-- Polling JSON seat availability (`GET /api/events/<id>/seats`) every five seconds with `Cache-Control: no-store` and fresh server checks.
-- Multi-seat reservation journey: select, review, confirm, atomically persist one booking per seat.
-- Logged-in booking history and POST/CSRF-protected cancellation of owned bookings; cancelled records remain available for historical display.
-- Completed `Seat` and `Booking` model relationships, per-booking seat-price snapshot and partial unique SQLite index preventing multiple active reservations for one seat.
-- Default seat inventory on seeded and admin-created events; local startup backfills empty-seat V2 events.
-- Reservation integration tests and refreshed requirements, UML and database documentation.
-
-### Changed
-- Event detail page now links to live seat reservation for upcoming events.
-- Account and navigation now link to **My bookings**.
-- Admin event deletion removes unused seats when no booking history exists, and refuses deletion when any reserved/cancelled history exists.
-- SQLite compatibility upgrade adds the `price_at_booking` column to prior booking tables and the unique active-seat index; existing data are preserved.
-
-### Security and behavior
-- Sessions/authentication, student/staff/admin roles and admin-only event CRUD retained from V2.
-- Booking confirmation rechecks event/seat ownership, max-seat count, occupancy, and time window server-side.
-- SQLite unique partial index is the final double-booking guard; transactional failures roll back the entire seat selection.
-- Cancellations are owner-only; all state-changing routes require CSRF protection.
-- No payment is collected. A "reservation" means seat allocation, not a paid ticket.
-
-### Known limitations
-- Five-second polling is near-real-time rather than WebSocket push or a temporary seat hold.
-- SQLite and application-level migrations are for local/demo workloads only.
-- No checkout, ticket delivery, QR scanning, refunds or production security hardening.
-
-## [2.0.0] — Accounts and Events
-
-- Secure registration/login/logout using Flask-Login and Werkzeug hashing.
-- Student/staff/admin roles, `@login_required`, admin-only event create/edit/delete.
-- Public events, sample data seeding, V1-to-V2 role compatibility, refreshed documentation.
-
-## [1.0.0] — Web Prototype
-
-- Flask application factory, V1 models, public catalog pages, UI-only account forms,
-  responsive Jinja2 templates, CSS, requirements and UML design documents.
+## v1.0 — Initial Prototype
+- Requirements, UML/database design, responsive pages, event catalog and initial models.

@@ -9,6 +9,7 @@ from wtforms import (
     StringField,
     SubmitField,
     TextAreaField,
+    HiddenField,
 )
 from wtforms.validators import (
     DataRequired,
@@ -49,16 +50,12 @@ class RegisterForm(FlaskForm):
     submit = SubmitField("Create account")
 
 
-class AdminRegisterForm(FlaskForm):
-    """Registration requires an unexpired invitation, checked in a transaction."""
-    full_name = StringField("Full name", validators=[DataRequired(), Length(min=2, max=120)])
-    email = StringField("University email", validators=EMAIL_VALIDATORS)
-    admin_key = PasswordField("One-time administrator registration key", validators=[
+class AdminLoginForm(FlaskForm):
+    """Access an existing admin account using a 20-minute single-use key."""
+    email = StringField("Administrator email", validators=EMAIL_VALIDATORS)
+    admin_key = PasswordField("One-time access key", validators=[
         DataRequired(), Length(min=20, max=160)])
-    password = PasswordField("Password", validators=[DataRequired(), Length(min=12, max=128)])
-    confirm_password = PasswordField("Confirm password", validators=[DataRequired(),
-        EqualTo("password", message="Passwords must match.")])
-    submit = SubmitField("Register as administrator")
+    submit = SubmitField("Sign in to dashboard")
 
 
 class StudentIDForm(FlaskForm):
@@ -110,7 +107,8 @@ class RenameSectionForm(FlaskForm):
 
 
 class AdminInviteForm(FlaskForm):
-    """CSRF-protected administrator invitation creation."""
+    """CSRF-protected login-key issuance bound to a specific admin ID."""
+    target_user_id = HiddenField("Administrator ID", validators=[DataRequired()])
     submit = SubmitField("Generate one-time admin key")
 
 

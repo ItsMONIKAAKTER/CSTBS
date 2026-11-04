@@ -1,162 +1,47 @@
-# Installation & Deployment — CSTBS v5.1
+# Installation & Deployment — CSTBS v5.2
 
-## Windows development (recommended demonstration)
+## Quick start: Windows 10/11
 
-Extract `CSTBS-v5.1.zip`, open PowerShell in the folder and run:
+Use Python 3.10+ and PowerShell. Extract `CSTBS-v5.2.zip` and open PowerShell **inside** its top-level folder.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-python -c "import secrets; print(secrets.token_hex(32))"
+python -m flask --app run.py init-db
+python -m flask --app run.py seed-events
+python run.py
 ```
 
-Paste the key into the `.env` `SECRET_KEY`. Then:
+For activation policy errors run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` and retry activation. The local app automatically saves a secret to `instance/.local_secret_key` (Git-ignored). No `.env` or Notepad editing is needed for the local default. The *administrator key* is generated and stored in hashed form by the app; **never paste it into any file**.
+
+On first interactive startup when no admin exists, type your admin email and optional name when prompted. Copy the 20-minute key printed in PowerShell. Open `http://127.0.0.1:5000/admin/login` and use the **same admin email + key**. For expired keys open a second PowerShell and run:
 
 ```powershell
-python -m flask --app run.py init-db
-python -m flask --app run.py seed-events
-python run.py
+python -m flask --app run.py admin-key admin@university.edu
 ```
 
-Copy the initial admin key **from the terminal**. Browse `http://127.0.0.1:5000/register/admin` and register. If you lose the key or it expires before any admin is created, use `python -m flask --app run.py reset-bootstrap-key` to invalidate it and generate another. Then `/admin/users` provides additional one-use keys via the website. Students self-register with Student ID at `/register`.
+If setup was skipped because the server was started without an interactive terminal, run `python -m flask --app run.py admin-setup` first. No public admin registration or manual database insertion is required. The current login session is not affected by key expiration.
 
-Run `python -m unittest discover -s tests -v` before use. All admissions are free in Chinese yuan (CNY ¥0.00); no payment gateway is involved.
+## Upgrade from V5.1
 
-## Migrating a V5 database
+1. Stop both applications and **back up** `instance/cstbs.db`, `.env`, and any private secret file. Copy your existing database to V5.2 `instance/`; maintain the same `SECRET_KEY` as before if using `.env`.
+2. `flask init-db` applies an idempotent migration: `admin_invitations.target_user_id` and its index, invalidates any unused V5.1 registration invitations, and retains the existing users, roles, events, seats and booking history.
+3. Run `python run.py`. If at least one admin exists, the terminal prints a new targeted login key (with only one admin) or prompts you to select an existing admin email (multiple admins).
+4. Use `/admin/login`. Former admin email/password login is intentionally replaced by one-time key login. Students still use email/password.
 
-Stop the V5 server. Back up `instance/cstbs.db` offline and copy the backup into V5.1. Preserve the private `.env`/secret. Run `python -m flask --app run.py init-db` to add `users.student_id` (nullable for legacy records), a partial unique student-ID index, the `admin_invitations` table and reset existing event prices to zero. It **does not remove users or bookings**. Historical booking price snapshots are retained for audit compatibility; all V5.1 reservations are free. Review and back up all data before deploying.
+## Production safety
 
-## Production/admin bootstrap security
+Local terminal provisioning is disabled on production WSGI app imports; only deliberate trusted-operator CLI commands can create keys. For a production host, provision the first admin from a **restricted operator terminal** using `flask admin-setup`, and generate login keys using `flask admin-key EMAIL`. The process user / console must be protected: whoever controls the server terminal has privileged credential-issuance power. Terminal-only login keys are inconvenient for a public multi-admin deployment; university SSO with MFA is recommended for real campus use.
 
-- `APP_ENV=production` does not auto-initialize databases or print bootstrap keys on app startup. Run `flask init-db` and `flask reset-bootstrap-key` in a **private operator console** (only when no administrator exists). Never expose the key in web server logs.
-- Keep `.env`, database, console output, email previews and student booking exports restricted. Enforce HTTPS, trusted hosts, secure cookies, SMTP and a shared Redis rate-limit backend. Use one SQLite writer/small pilot or migrate to PostgreSQL with Alembic for scale.
-- The current one-time key is printed once and not recoverable from SQLite. Expired bootstrap keys must be renewed with the CLI, and admin-created keys expire in 60 minutes. Rotate any disclosed key by issuing a new one and do not use the disclosed key.
-- App startup key display is **development only**. A terminal command remains as a secure recovery/provisioning mechanism, not a need to manually edit code or add users in PyCharm.
-- Validate email, CSRF, invitation replay, role checks, rollback integrity, Student ID privacy, and backup/restore before production use.
+Production requires explicit `APP_ENV=production`, a strong stable private `SECRET_KEY`, HTTPS-only cookies, `TRUSTED_HOSTS`, Redis shared rate limits and configured SMTP. The app refuses startup without these. Use a persistent data volume, backups, tested migrations, proxy hardening and audit logs for wider deployment. SQLite supports a small controlled deployment, not high-concurrency ticket releases.
 
----
+## Run tests
 
-## Previous V5 deployment guide (archived context)
-
-# CSTBS v5.0 — Installation & Deployment Guide
-
-## Supported environment
-
-- Python **3.10+**, virtual environment, all packages from `requirements.txt`.
-- SQLite on a **single persistent host**, with backup and limited traffic; do not put `instance/cstbs.db` on ephemeral storage.
-- Gunicorn for Linux/Unix application serving behind HTTPS-enabled reverse proxy. Local `python run.py` is only a loopback development server.
-- An SMTP provider for real email delivery and Redis shared rate limiting for deployment.
-
-## 1. Local setup
-
-```bash
-unzip CSTBS-v5.zip && cd CSTBS-v5
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-cp .env.example .env
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-Paste the generated secret into `.env` under `SECRET_KEY`. On Windows use `.venv\Scripts\Activate.ps1` and `Copy-Item .env.example .env`. No webpack/NPM is necessary.
-
-```bash
-python -m flask --app run.py init-db
-python -m flask --app run.py seed-events
+```powershell
 python -m unittest discover -s tests -v
-python run.py
 ```
 
-Browse `http://127.0.0.1:5000/`. Create a local admin as described in README.
+## Git hygiene
 
-## 2. Environment variables
-
-| Setting | Development | Deployment |
-| --- | --- | --- |
-| `APP_ENV` | `development` | `production` |
-| `SECRET_KEY` | Random and private | Random 32+ chars, stable and private |
-| `DATABASE_URL` | `sqlite:///cstbs.db` | Persistent SQLite path/volume; plan real migrations |
-| `SESSION_COOKIE_SECURE` | `false` | `true`, HTTPS required |
-| `TRUSTED_HOSTS` | Optional | **Required**: comma-separated allowed DNS names |
-| `RATELIMIT_STORAGE_URI` | `memory://` | **Required**: Redis URL, e.g. `redis://127.0.0.1:6379/0` |
-| `MAIL_BACKEND` | `console` or `smtp` | **Required**: `smtp` |
-| `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` | Optional test SMTP | Protected live SMTP account |
-| `MAIL_USE_TLS`, `MAIL_USE_SSL`, `MAIL_DEFAULT_SENDER` | Test settings | Configure per mail provider |
-| `DEMO_SEED_PASSWORD` | Optional local demo only | **Never set/run** |
-
-`APP_ENV=production` refuses startup without the required secret length, trusted host list, secure cookies, non-memory rate-limit backend, and non-console mail. For a Redis backend, install the relevant extra with `python -m pip install 'Flask-Limiter[redis]>=3.10,<5'` after the base requirements. Production packages must be pinned to tested exact versions in a deployment lockfile.
-
-## 3. Example small single-host deployment (Linux)
-
-1. Create a dedicated low-privilege OS user and a private install directory, e.g. `/srv/cstbs`.
-2. Install Python 3.10+, create `.venv`, install requirements and `Flask-Limiter[redis]` extra. Run Redis as an appropriately secured service accessible only to your application.
-3. Configure a private `.env`, for example:
-
-```dotenv
-APP_ENV=production
-SECRET_KEY=<replace-with-long-generated-private-value>
-DATABASE_URL=sqlite:////srv/cstbs/instance/cstbs.db
-SESSION_COOKIE_SECURE=true
-TRUSTED_HOSTS=stadium.example.edu
-RATELIMIT_STORAGE_URI=redis://127.0.0.1:6379/0
-MAIL_BACKEND=smtp
-MAIL_SERVER=smtp.your-provider.example
-MAIL_PORT=587
-MAIL_USE_TLS=true
-MAIL_USERNAME=<private-value>
-MAIL_PASSWORD=<private-value>
-MAIL_DEFAULT_SENDER=CSTBS <noreply@stadium.example.edu>
-```
-
-4. Ensure the application user can write to `instance/`, but **web/static hosting cannot read the database**. Set file/dir permissions to least privilege.
-5. After **making and checking backups**, run schema setup explicitly:
-
-```bash
-python -m flask --app run.py init-db
-```
-
-6. Use a single Gunicorn worker while using local SQLite. Keep request load modest and test multi-thread write contention; for substantial traffic migrate to PostgreSQL with proper migrations before using multiple workers.
-
-```bash
-gunicorn --bind 127.0.0.1:8000 --workers 1 --threads 4 --timeout 30 'run:app'
-```
-
-7. Put Nginx/Caddy/your campus reverse proxy in front. Terminate HTTPS, set the correct hostname, forward only necessary headers, restrict proxy access, and add system service supervision and log rotation. **Do not expose Gunicorn directly**. The application uses the actual connecting peer for rate limits; it does *not* trust arbitrary `X-Forwarded-For`. If you later choose to install proxy middleware, configure exact trusted hop counts only after network verification.
-8. Set TLS certificates, log-access controls, off-host encrypted backups, monitoring and vulnerability scanning. Try a full backup restoration and a test booking/cancellation before announcing availability.
-
-### Operational caveats
-
-- **Schema:** V1–V4 compatibility scripts and `db.create_all()` are not an Alembic migration system. In production mode the app does **not** create/upgrade tables on every web start; `flask init-db` is explicit. Review schema changes/restore procedures before upgrades.
-- **Times:** Event start is stored as a naive timestamp representing a consistently chosen campus timezone; do not deploy across multiple local zones without redesigning timezone handling.
-- **Email:** Notification sending is synchronous after commit and best effort. For a large installation, introduce a durable outbox and job queue.
-- **Seats:** Five-second availability polling is near-real-time, not a seat hold or WebSocket push. Database constraints protect active seat uniqueness; SQLite is not suited to high-concurrency sales.
-- **Data privacy:** Report downloads include names/email; use HTTPS, authorized admin distribution, retention policies, and logs with restricted permissions.
-- **Security:** Current CSP allows inline **styles** because the inherited dynamic seat grid uses an inline CSS custom property. No inline script permission is granted. A future stricter CSP should eliminate dynamic inline styling.
-
-## 4. Back up or migrate a V4 database
-
-1. Stop all processes writing the database.
-2. Use the SQLite backup API or copy `instance/cstbs.db` while it is offline. Store an encrypted off-host copy and test restore.
-3. Extract V5 into its own directory. Copy the backed-up database file to `CSTBS-v5/instance/cstbs.db`, set the `DATABASE_URL` if different, and preserve the `SECRET_KEY` where ongoing sessions must remain valid.
-4. Run `python -m flask --app run.py init-db` once with a reviewed backup/rollback plan. No V5 schema columns are added: reports aggregate existing V1–V4 entities.
-5. Run integration tests against a **copy** of the database; validate old bookings, seating blocks and admin functions. Switch traffic only after acceptance.
-
-## 5. Validation and release checklist
-
-```bash
-python -m unittest discover -s tests -v
-python -m compileall -q app config.py run.py
-```
-
-- [ ] Home, Events and responsive seat selection work on mobile and desktop.
-- [ ] Registration/login/logout, roles, CSRF and 403 tests work.
-- [ ] Multi-seat checkout and owner/admin cancellation preserve booking records.
-- [ ] Console/SMTP booking mail works; no credentials are logged.
-- [ ] Admin PDF/CSV reports work and exported data is treated as confidential.
-- [ ] Redis-backed rate limiting, trusted hosts, HTTPS/secure cookies and proxy IP behavior are confirmed.
-- [ ] Databases/backups remain excluded from Git and off-host recovery was rehearsed.
-- [ ] Deployment has monitoring, appropriate logging, updates, threat review and tested dependencies.
-
-This is a **deployment-oriented reference application** rather than a certified high-traffic ticketing product. Scale-out, full transactional audit logs, password recovery, production migrations, queue-backed mail and operational compliance remain separate work.
+Do not commit `.env`, `instance/.local_secret_key`, SQLite databases, logs, plaintext access keys, student IDs or private reports. See `SECURITY.md`.

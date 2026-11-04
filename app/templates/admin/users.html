@@ -3,16 +3,14 @@
 {% block content %}
 <section class="page-heading container admin-page-title">
   <span class="section-kicker">ADMIN / ACCOUNTS</span><h1>User <em>roles.</em></h1>
-  <p>Manage Student IDs and user roles. Create single-use invitations for new administrators.</p>
+  <p>Manage Student IDs and roles. Create 20-minute login keys for existing administrators.</p>
 </section>
 <section class="container admin-section">
   {% include 'admin/_nav.html' %}
   <div class="admin-panel">
-    <div class="admin-panel-head"><div><h2>Invite an administrator</h2><p>Generate a one-time key, shown once. It expires in 60 minutes.</p></div>
-    <form action="{{ url_for('admin.generate_admin_key') }}" method="post">
-      {{ invite_form.hidden_tag() }}
-      {{ invite_form.submit(class='button button-primary') }}
-    </form></div>
+    <div class="admin-panel-head"><div><h2>Admin login keys</h2>
+      <p>To add another admin, promote a trusted existing account below. Then generate a 20-minute, one-time login key for that account.</p>
+    </div></div>
   </div>
   <div class="admin-panel">
     <div class="admin-panel-head"><h2>Registered accounts</h2><span class="catalog-count">{{ users|length }} users</span></div>
@@ -30,7 +28,14 @@
           </form>{% endif %}</td>
         <td>{{ user.created_at.strftime('%b %d, %Y') }}</td>
         <td><span class="role-pill">{{ user.role|capitalize }}</span></td>
-        <td>{% if user.id == current_user.id %}<span class="muted">Current account (locked)</span>{% else %}
+        <td>{% if user.role == 'admin' %}
+          <form method="post" action="{{ url_for('admin.generate_admin_key') }}" class="role-edit">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="target_user_id" value="{{ user.id }}">
+            <button class="button button-primary button-small" type="submit">Generate login key</button>
+          </form>
+          {% endif %}
+          {% if user.id == current_user.id %}<span class="muted">Current account (locked)</span>{% else %}
           <form class="role-edit" method="post" action="{{ url_for('admin.change_role', user_id=user.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <label class="sr-only" for="role-{{ user.id }}">Role for {{ user.email }}</label>

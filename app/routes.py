@@ -10,10 +10,10 @@ from sqlalchemy.exc import IntegrityError
 from . import db, limiter
 from .authz import admin_required
 from .notifications import notify_booking_confirmed, notify_booking_cancelled
-from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm, AdminRegisterForm, StudentIDForm
+from .forms import DeleteEventForm, EventForm, LoginForm, RegisterForm, AdminLoginForm, StudentIDForm
 from .models import Booking, Event, Seat, User, utc_now
 from .seating import MAX_SEATS_PER_BOOKING, add_default_seats, reserved_seat_ids
-from .admin_keys import find_valid_invitation, consume_invitation
+from .admin_keys import consume_login_key
 
 main = Blueprint("main", __name__)
 
@@ -83,42 +83,36 @@ def register():
     return render_template("register.html", form=form)
 
 
-@main.route("/register/admin", methods=["GET", "POST"])
-@limiter.limit("4 per minute; 12 per hour", methods=["POST"])
-def register_admin():
-    """Create an administrator only with an unused, unexpired invitation."""
+@main.get("/register/admin")
+def legacy_admin_register_redirect():
+    """Retired V5.1 admin registration link never registers an administrator."""
+    return redirect(url_for("main.admin_login"), code=302)
+
+
+@main.route("/admin/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute; 15 per hour", methods=["POST"])
+def admin_login():
+    """Authenticate an existing admin using a one-time, email-bound login key."""
     if current_user.is_authenticated:
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
         return redirect(url_for("main.account"))
-    form = AdminRegisterForm()
+    form = AdminLoginForm()
     if form.validate_on_submit():
-        email = form.email.data.strip().lower()
-        if db.session.scalar(select(User.id).where(User.email == email)) is not None:
-            form.email.errors.append("An account with this email already exists.")
-        else:
-            invitation = find_valid_invitation(form.admin_key.data)
-            if invitation is None:
-                form.admin_key.errors.append("Invalid, expired, or already-used admin key.")
-            else:
-                user = User(full_name=form.full_name.data.strip(), email=email, role="admin")
-                user.set_password(form.password.data)
-                db.session.add(user)
-                try:
-                    db.session.flush()  # Reserve user ID before atomic token consumption.
-                    if not consume_invitation(invitation, user.id):
-                        db.session.rollback()
-                        form.admin_key.errors.append("Invalid or already-used admin key.")
-                    else:
-                        db.session.commit()
-                except IntegrityError:
-                    db.session.rollback()
-                    form.email.errors.append("Account or admin key has already been used.")
-                else:
-                    if user.id is not None and not form.admin_key.errors:
-                        login_user(user)
-                        flash("Administrator account created successfully.", "success")
-                        return redirect(url_for("admin.dashboard"))
-    response = render_template("register_admin.html", form=form)
-    return response
+        user = consume_login_key(form.email.data, form.admin_key.data)
+        if user is not None:
+            # Avoid carrying anonymous booking drafts into the admin session.
+            session.clear()
+            login_user(user, fresh=True)
+            flash("Administrator login successful.", "success")
+            return redirect(url_for("admin.dashboard"))
+        form.admin_key.errors.append(
+            "Invalid, expired, or used key. Generate a new key in the server terminal.")
+    response = render_template("admin_login.html", form=form)
+    from flask import make_response
+    result = make_response(response)
+    result.headers["Cache-Control"] = "no-store, private"
+    return result
 
 
 @main.post("/account/student-id")
@@ -157,6 +151,9 @@ def login():
     if form.validate_on_submit():
         email = form.email.data.strip().lower()
         user = db.session.scalar(select(User).where(User.email == email))
+        if user and user.role == "admin":
+            flash("Administrators sign in with a one-time key at Admin Login.", "info")
+            return redirect(url_for("main.admin_login"))
         if user and user.check_password(form.password.data):
             login_user(user)
             flash("Signed in successfully.", "success")

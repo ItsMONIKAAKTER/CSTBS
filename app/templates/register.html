@@ -37,7 +37,7 @@
             </div>
             {{ form.submit(class='button button-primary button-full') }}
         </form>
-        <p class="auth-switch">Are you a university administrator? <a href="{{ url_for('main.register_admin') }}">Register with an admin key</a></p>
+        <p class="auth-switch">Are you a university administrator? <a href="{{ url_for('main.admin_login') }}">Sign in with an admin access key</a></p>
         <p class="auth-switch">Already registered? <a href="{{ url_for('main.login') }}">Sign in</a></p>
     </div>
 </section>

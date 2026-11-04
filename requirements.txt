@@ -1,4 +1,4 @@
-# CSTBS v5.1 | Python 3.10+ | constrained compatible release series
+# CSTBS v5.2 | Python 3.10+ | constrained compatible release series
 Flask>=3.1,<4.0
 Flask-SQLAlchemy>=3.1,<4.0
 SQLAlchemy>=2.0,<3.0

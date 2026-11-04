@@ -50,13 +50,14 @@ class User(UserMixin, db.Model):
 
 
 class AdminInvitation(db.Model):
-    """Hashed, expiring, single-use administrator registration invitation."""
+    """Hashed, expiring, single-use login key tied to an administrator."""
 
     __tablename__ = "admin_invitations"
     id = db.Column(db.Integer, primary_key=True)
     token_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
     bootstrap = db.Column(db.Boolean, nullable=False, default=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
     used_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     expires_at = db.Column(db.DateTime, nullable=False)
