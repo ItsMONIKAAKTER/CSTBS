@@ -1,4 +1,4 @@
-# CSTBS Version 4 — SQLAlchemy and SQLite Design
+# CSTBS Version 5 — SQLAlchemy and SQLite Design
 
 ## Entity relationships
 
@@ -56,3 +56,19 @@ A fresh database already has the column through SQLAlchemy model creation. Exist
 ## Limitations
 
 `Seat.section` is denormalized, sufficient for V4. Seat blocks are stored per event-seat rather than venue-wide physical locations. Changes to event or seat titles later affect how old bookings are displayed; add immutable snapshots or a normalized venue layout in a later production design. Calendar times remain campus-local naive datetime. SQLite write concurrency is appropriate for development, not a large public ticket sale.
+
+
+## V5 reporting (no schema changes)
+
+`app/reports.py` reads V2–V4 `User`, `Event`, `Seat`, and `Booking` records without new columns or tables. It provides:
+
+- **Booking exports:** joined booking→seat→event and booking→user; optional exact `status` and `event_id` filters. An active-value subtotal uses immutable `price_at_booking`, not the current event price.
+- **Event exports:** correlated SQL counts for seating total, blocked seats and active bookings; available seats are derived at export time.
+- **Confidentiality:** admin-only views; PDF/CSV bytes never written to static files or the database; explicit no-store headers; row caps.
+- **CSV safety:** dangerous spreadsheet formula prefixes in untrusted text are prefixed with a single quote; original Unicode is retained by UTF-8 CSV. PDF uses standard built-in font and replaces unsupported glyphs.
+
+V5 enables SQLite's `PRAGMA foreign_keys=ON` on each application SQLite connection, so orphan references are now rejected by the database. Keep a consistent database schema and do not disable this for convenience.
+
+## Deployment structure note
+
+In `APP_ENV=development`, the factory initializes the schema using existing idempotent compatibility scripts. For `APP_ENV=production`, schema initialization/upgrade is **explicit** using `flask init-db`, not automatic on every web process start. This command remains a limited SQLite compatibility mechanism; reviewed migrations, rollback verification, locks, and scheduled maintenance are needed on a production system. V5 reporting does not require migration from V4.

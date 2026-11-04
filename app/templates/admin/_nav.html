@@ -2,5 +2,6 @@
   <a href="{{ url_for('admin.dashboard') }}" {% if request.endpoint == 'admin.dashboard' %}aria-current="page"{% endif %}>Overview</a>
   <a href="{{ url_for('main.admin_events') }}" {% if request.endpoint and (request.endpoint.startswith('main.admin_event') or request.endpoint == 'admin.seats') %}aria-current="page"{% endif %}>Events &amp; seats</a>
   <a href="{{ url_for('admin.users') }}" {% if request.endpoint in ['admin.users', 'admin.change_role'] %}aria-current="page"{% endif %}>Users</a>
+  <a href="{{ url_for('reports.index') }}" {% if request.endpoint and request.endpoint.startswith('reports.') %}aria-current="page"{% endif %}>Reports</a>
   <a href="{{ url_for('admin.bookings') }}" {% if request.endpoint in ['admin.bookings', 'admin.cancel_booking'] %}aria-current="page"{% endif %}>Bookings</a>
 </nav>

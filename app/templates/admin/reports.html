@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Reports and exports{% endblock %}
+{% block content %}
+<section class="page-heading container admin-page-title">
+  <span class="section-kicker">ADMIN / REPORTS</span>
+  <h1>Download <em>insights.</em></h1>
+  <p>Export booking history or event seating statistics to a presentation-ready PDF or an editable CSV file.</p>
+</section>
+<section class="container admin-section">
+  {% include 'admin/_nav.html' %}
+  <div class="reports-grid">
+    <article class="admin-panel report-card">
+      <div class="report-icon" aria-hidden="true">01</div>
+      <h2>Booking report</h2>
+      <p>Review reservation owners, seats, statuses, timestamps and booked prices. Filter by status or event before exporting.</p>
+      <form class="report-form" method="get" action="{{ url_for('reports.bookings_export', format='csv') }}">
+        <div class="form-field"><label for="report-status">Booking status</label>
+          <select id="report-status" name="status" class="form-control">
+            <option value="all">All bookings</option>
+            <option value="reserved">Reserved only</option>
+            <option value="cancelled">Cancelled only</option>
+          </select></div>
+        <div class="form-field"><label for="report-event">Event</label>
+          <select id="report-event" name="event_id" class="form-control">
+            <option value="">All events</option>
+            {% for event in events %}<option value="{{ event.id }}">{{ event.title }}</option>{% endfor %}
+          </select></div>
+        <div class="report-actions">
+          <button class="button button-secondary" type="submit" formaction="{{ url_for('reports.bookings_export', format='csv') }}">Download CSV</button>
+          <button class="button button-primary" type="submit" formaction="{{ url_for('reports.bookings_export', format='pdf') }}">Download PDF</button>
+        </div>
+      </form>
+    </article>
+    <article class="admin-panel report-card">
+      <div class="report-icon" aria-hidden="true">02</div>
+      <h2>Event inventory report</h2>
+      <p>See events, venues, campus dates, prices, total seating, occupied seats, blocked seats and remaining capacity.</p>
+      <div class="report-preview"><span>Included statistics</span>
+        <ul><li>Event details and category</li><li>Capacity and reserved seats</li><li>Blocked and available seating</li></ul>
+      </div>
+      <form class="report-actions" method="get" action="{{ url_for('reports.events_export', format='csv') }}">
+        <button class="button button-secondary" type="submit" formaction="{{ url_for('reports.events_export', format='csv') }}">Download CSV</button>
+        <button class="button button-primary" type="submit" formaction="{{ url_for('reports.events_export', format='pdf') }}">Download PDF</button>
+      </form>
+    </article>
+  </div>
+  <p class="report-privacy">Only administrators can download reports. Exports contain personal booking information; keep downloaded files private. CSV exports are capped at 10,000 rows and PDF exports at 2,000 rows.</p>
+</section>
+{% endblock %}

@@ -1,108 +1,150 @@
-# CSTBS v4.0 — Administration
+# CSTBS v5.0 — Final Release
 
-**Campus Stadium Ticket Booking System (CSTBS)** is a Python 3.10+ Flask/SQLite application for public event browsing, user accounts, event seating, and seat reservations. Version **4.0** adds an administrator operations console and booking email notifications on top of the complete V3 reservation journey.
+**Campus Stadium Ticket Booking System** is a Python 3.10+ Flask application for campus event discovery, account management, seat reservations, and stadium administration. Version 5 adds **administrator PDF reports and CSV downloads**, strengthened request security, a demonstration data command, and complete user/admin/deployment manuals.
 
-> **Development application:** Reservations do not collect payments or create tickets. Email defaults to a **console preview**, not a real mailbox delivery. SQLite and targeted local schema compatibility upgrades are not intended for high-traffic production use.
+> **Scope:** A reservation allocates seats; no payments, QR ticket issuance, refunds, or external identity system are included. This repository has deployment-oriented structure, but SQLite, simple compatibility migrations, five-second seat polling, and best-effort mail are designed for **small, single-host installations**. Complete the deployment hardening checklist before exposing the app to real users.
+
+## Features by role
+
+| Feature | Visitor | Student / Staff | Admin |
+| --- | :---: | :---: | :---: |
+| Browse events, event details and seat availability | ✓ | ✓ | ✓ |
+| Create an account / sign in | ✓ | ✓ | ✓ |
+| Select, review and confirm up to 6 seats | — | ✓ | ✓ |
+| Review and cancel own bookings | — | ✓ | ✓ |
+| Admin dashboard and full event CRUD | — | — | ✓ |
+| Manage sections, block/unblock seats | — | — | ✓ |
+| Promote/demote other accounts | — | — | ✓ |
+| Filter and cancel any booking | — | — | ✓ |
+| Export booking/event reports (PDF or CSV) | — | — | ✓ |
+
+The app retains Flask-Login, Werkzeug password hashing, role checks, Flask-WTF CSRF tokens, SQLite double-booking constraints, and Flask-Mail booking notifications from earlier versions.
 
 ## Technology stack
 
-Python 3.10+, Flask, Flask-SQLAlchemy, SQLAlchemy, SQLite, Flask-Login, Flask-WTF, Werkzeug password hashing, Flask-Mail, python-dotenv, Jinja2, HTML, CSS, vanilla JavaScript. No frontend frameworks.
+Python 3.10+, Flask 3.1, SQLAlchemy 2, Flask-SQLAlchemy, SQLite, Jinja2, Flask-Login, Flask-WTF, Flask-Mail, Flask-Limiter, ReportLab, python-dotenv, HTML, CSS and JavaScript. Gunicorn is provided for Unix WSGI deployment; no JavaScript build process is needed.
 
-## Quick start
+## Local installation (macOS/Linux)
 
 ```bash
-cd CSTBS-v4
+unzip CSTBS-v5.zip && cd CSTBS-v5
 python -m venv .venv
-source .venv/bin/activate            # PowerShell: .venv\Scripts\Activate.ps1
+source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env                 # PowerShell: Copy-Item .env.example .env
+cp .env.example .env
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
 
-Replace `SECRET_KEY=replace-with-a-random-secret` in `.env` with the freshly generated secret. Keep `.env` private. By default, **MAIL_BACKEND=console** prints booking email previews to the Flask application log; no SMTP server is required. Do not use real personal email addresses in demo data if you don't need them.
+Edit `.env` and replace `SECRET_KEY=replace-with-a-random-secret` with the generated key. **Never commit `.env`.** On Windows, use `.venv\Scripts\Activate.ps1` and `Copy-Item .env.example .env` instead of the two corresponding commands.
 
 ```bash
+python -m flask --app run.py init-db
 python -m flask --app run.py seed-events
 python run.py
 ```
 
-Visit **http://127.0.0.1:5000/**. New registrations have the `student` role. To assign your trusted local account as an administrator, first register through the web UI, then run:
+Open http://127.0.0.1:5000/. The development server listens on **localhost only**; it runs with the debugger disabled. The SQLite database is `instance/cstbs.db` by default. `seed-events` safely inserts four upcoming illustrative events **only when the event table is empty**. Each sample event starts with 60 seats.
 
-```bash
-python -m flask --app run.py set-role admin@campus.edu admin
-```
+### Demonstration dataset (optional, non-production)
 
-Sign out, sign in again and visit **http://127.0.0.1:5000/admin/**. This local CLI command can also set `staff` and `student`; public registration can never assign itself a privileged role.
-
-## Admin console: V4 workflows
-
-1. **Dashboard (`/admin/`)** — four KPI cards (users, events, active bookings, blocked seats), recent booking activity, and links to management screens.
-2. **Event CRUD (`/admin/events`)** — create, edit, delete events. New events automatically receive 60 seats in a default `Main` section. Events with any booking history cannot be deleted.
-3. **Seat inventory (`/admin/events/<id>/seats`)** — block or unblock individual seats; create sections with 1–20 rows and 1–30 seats per row; rename sections; delete unused sections. Every section name must be unique per event (case-insensitive in the app). A reserved seat cannot be blocked; a section with *any* reserved or cancelled booking record cannot be removed.
-4. **Roles (`/admin/users`)** — assign student/staff/admin roles to other accounts. An administrator cannot demote their own account through the UI, and the last administrator cannot be demoted.
-5. **Bookings (`/admin/bookings`)** — paginated view of all reservation records, filtered by event or status. Admins may cancel active reservations; the owner receives a cancellation email preview or SMTP mail. Historical rows cannot be deleted through this interface.
-
-All admin routes use Flask-Login plus an admin authorization check. Administrative changes are POST requests protected by CSRF validation. Existing V2 event routes remain valid, and V3 personal booking history still shows only the current user's entries.
-
-## Seats, booking flow and availability
-
-Open an upcoming event, click **Choose seats**, and select up to six unreserved, unblocked seats. The UI now groups seats by **section and row**. A four-state legend differentiates available, selected, reserved and blocked seats. The page polls `GET /api/events/<id>/seats` every five seconds; the no-cache JSON includes `reserved_seat_ids`, **`blocked_seat_ids`**, `available`, `total` and `booking_open`.
-
-After selection: **Review → Confirm → Save**. The server checks event ownership, starting time, number of seats, blocked state and current bookings before saving. SQLite has both a partial UNIQUE index preventing two active bookings on one seat and database triggers preventing a booking on a blocked seat (and blocking a reserved seat) even when admin action and checkout race. If a conflict occurs, the entire multi-seat transaction rolls back.
-
-My bookings (`/bookings`) lists active/cancelled reservations. Each seat is a Booking row with the saved event price. A user may cancel their **own** booking. Admins may cancel any user's booking separately; neither path erases history. Confirmation emits one email per checkout, cancellation emits one email per cancelled booking, **after successful commits**. No payment is captured and there is no refund workflow.
-
-## Email: console (default) or Ethereal SMTP
-
-**Console preview** (`MAIL_BACKEND=console`) uses Flask-Mail `Message` to format notifications, then writes the recipient, subject, and content to the Flask logger. This does not send a real email. The content contains names and booking details; limit log access accordingly.
-
-**Ethereal test SMTP**: create an Ethereal test account outside the app and set the following values in `.env`:
+For a presentation with example accounts, bookings and blocked seats, add a generated test password to your private `.env`:
 
 ```dotenv
-MAIL_BACKEND=smtp
-MAIL_SERVER=smtp.ethereal.email
-MAIL_PORT=587
-MAIL_USE_TLS=true
-MAIL_USE_SSL=false
-MAIL_USERNAME=your-ethereal-user
-MAIL_PASSWORD=your-ethereal-password
-MAIL_DEFAULT_SENDER=CSTBS <no-reply@campus.example>
+DEMO_SEED_PASSWORD=put-your-own-12-plus-character-demo-password-here
 ```
 
-Messages are sent via Flask-Mail to Ethereal's test inbox for inspection; the recipient address shown in the app need not receive external mail. Do not commit test credentials. `MAIL_SUPPRESS_SEND=true` suppresses SMTP sends when testing. Notification errors are logged *after* the booking transaction commits, so SMTP outages do not lose a saved booking; no retries or delivery guarantees are implemented. Additional details: [Email development guide](docs/email-development.md).
+Then run:
 
-## Upgrade an existing V3 SQLite database (preserve data)
+```bash
+python -m flask --app run.py seed-demo
+```
 
-**Stop V3 and back up its whole `instance/cstbs.db` file first.** Copy that database into `CSTBS-v4/instance/cstbs.db` *before* launching V4 (do not copy it while the previous server writes). Copy your private `.env` separately if desired; never push it to GitHub.
+This creates **demo.student@campus.example**, **demo.staff@campus.example**, and **demo.admin@campus.example** with your password, plus example reserved/cancelled bookings and blocked seats. Repeated runs don't duplicate records. The command **refuses production mode**. These are strictly fictional accounts; never use the demo credentials on a public service.
 
-V4's startup compatibility upgrade adds `seats.is_blocked BOOLEAN NOT NULL DEFAULT 0` to existing V3 databases and creates SQLite triggers for blocked-seat/active-booking consistency. Existing users, events, seats and bookings are preserved. Earlier V1/V2 upgrades still run. `db.create_all()` does not perform general migrations; for production, replace these targeted scripts with proper Alembic/Flask-Migrate migration versions and review your schema and backups. **Do not overwrite the existing DB with demo data.** `seed-events` is idempotent for an already-populated catalog.
+### Create your own administrator
 
-## Main routes
+Register normally; registrations always receive the `student` role. Then, in a trusted local terminal:
 
-| Route | Access | Description |
+```bash
+python -m flask --app run.py set-role your-email@campus.edu admin
+```
+
+Sign out/in and visit `/admin/`. Administrative role assignment is never exposed to public registration.
+
+## Version 5 reporting
+
+The **Reports** tab on `/admin/` links to `/admin/reports/`. It offers:
+
+- **Booking report:** filter by status (`all`, `reserved`, `cancelled`) and/or an event. Columns include booking ID, UTC creation time, event, seat, owner's name/email, status and saved price.
+- **Event report:** all events with start time, venue, category, price, total seats, active reservations, blocked seats and available seats.
+- **PDF:** landscape pages with repeated table headers, metadata and page numbers, generated in memory by ReportLab.
+- **CSV:** UTF-8 (BOM) exports for spreadsheet editing; user-entered values that look like formulas are safely prefixed.
+
+All export routes are **GET but admin-authorized**, set attachment and `no-store` headers, and limit output to **2,000 PDF rows** or **10,000 CSV rows**. Large reports require narrowing filters or adding a proper background report pipeline. Exports can contain personal information; distribute only through authorized channels.
+
+## Core pages and endpoints
+
+| Path | Access | Purpose |
 | --- | --- | --- |
-| `/`, `/events`, `/events/<id>` | Public | Event catalog |
-| `/register`, `/login`, `POST /logout`, `/account` | Account-dependent | Login and profile |
-| `/events/<id>/seats`, `POST /events/<id>/booking/{review,confirm}` | Logged in | Seat booking |
-| `/api/events/<id>/seats` | Public | Availability JSON, no-store |
-| `/bookings`, `POST /bookings/<id>/cancel` | Logged in / booking owner | History and personal cancellation |
-| `/admin/` | Admin | Operations dashboard |
-| `/admin/events`, `/admin/events/new`, `/admin/events/<id>/edit`, `POST /admin/events/<id>/delete` | Admin | Event CRUD |
-| `/admin/events/<id>/seats`, `POST /admin/seats/<seat_id>/toggle-block` | Admin | Seat management |
-| `POST /admin/events/<id>/sections/{create,rename}`, `POST /admin/events/<id>/sections/<name>/delete` | Admin | Section management |
-| `/admin/users`, `POST /admin/users/<id>/role` | Admin | User role management |
-| `/admin/bookings`, `POST /admin/bookings/<id>/cancel` | Admin | Booking oversight |
+| `/`, `/events`, `/events/<id>` | Public | Discovery and public catalog |
+| `/register`, `/login`, `POST /logout`, `/account` | Accounts | Authentication and account details |
+| `/events/<id>/seats`, `POST /events/<id>/booking/{review,confirm}` | Signed-in | Seat selection and checkout |
+| `/api/events/<id>/seats` | Public | Five-second polling availability JSON |
+| `/bookings`, `POST /bookings/<id>/cancel` | Owner | Booking history/cancellation |
+| `/admin/` | Admin | Metrics and recent bookings |
+| `/admin/events...`, `/admin/events/<id>/seats` | Admin | Event CRUD, seats and sections |
+| `/admin/users`, `/admin/bookings` | Admin | Roles and booking oversight |
+| `/admin/reports/` | Admin | Export dashboard |
+| `/admin/reports/bookings.csv`, `bookings.pdf` | Admin | Filtered booking exports |
+| `/admin/reports/events.csv`, `events.pdf` | Admin | Event inventory exports |
 
-## Tests and documentation
+## Booking and email behavior
 
-Run the complete tests after installing packages:
+Seat availability refreshes every five seconds. A confirmation **rechecks** seat ownership, blocks, availability and future event time. The SQLite partial unique index prevents two active bookings on one seat; three SQLite triggers forbid booking blocked seats or blocking seats with active bookings. Multi-seat checkout commits together or rolls back together. Cancellation keeps historical booking records and frees the seat.
+
+`MAIL_BACKEND=console` prints booking confirmation/cancellation previews in restricted local logs; `MAIL_BACKEND=smtp` can use Ethereal or a configured SMTP service. Notifications happen *after* the database commits, so failures are logged and do not reverse bookings. There is no durable outbox or retry queue. See [Email development](docs/email-development.md).
+
+## Security improvements in v5
+
+- Global CSRF checks on POST forms, including logout, checkout, admin mutations and cancellation; tokens expire after 1 hour.
+- Flask-Limiter: 300 requests/hour by IP by default, 5 login or registration POSTs/minute (25/hour), 12 confirmations/minute and 60 availability GETs/minute.
+- Controlled event price, password length (12–128 chars), section dimensions and safe query filter values.
+- `MAX_CONTENT_LENGTH` 128 KiB; security headers for CSP, no framing, referrers, permissions, and MIME-sniffing prevention.
+- `SESSION_COOKIE_HTTPONLY` and `SameSite=Lax`; HTTPS-only cookies, HSTS and trusted host enforcement for `APP_ENV=production`.
+- SQLite foreign-key enforcement; security-sensitive exports remain private and are formula-safe for CSV.
+- Default dev limiter uses `memory://` **only for local development**. Production requires shared storage (Redis) and proper reverse-proxy configuration. Never blindly trust `X-Forwarded-For`.
+
+See [SECURITY.md](SECURITY.md) and [Installation & deployment](docs/installation-deployment.md).
+
+## Upgrade from Version 4 (preserve bookings)
+
+1. Stop V4 and **make a SQLite backup** before copying data.
+2. Extract V5 to a new folder. Copy `CSTBS-v4/instance/cstbs.db` to `CSTBS-v5/instance/cstbs.db` while both servers are stopped. Copy any locally configured secrets into the new private `.env`.
+3. Install V5 requirements, configure a strong key, and run `python -m flask --app run.py init-db` once. Existing V1–V4 compatibility scripts are idempotent for their documented schema changes. No V5 DB columns are required for reports.
+4. Run the full tests, check login, existing booking history, admin workflows and CSV/PDF report downloads **before** switching your users.
+
+**Important:** The bundled scripts are specific SQLite compatibility steps, not full data migrations. For a larger or live installation, use a reviewed Alembic-based migration process, rehearsal, rollback and backup plan. Never copy a database while it is being actively written.
+
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
+python -m compileall -q app config.py run.py
 ```
 
-The V4 test module covers role protections, seat block/unblock, section lifecycle, owner notifications from admin cancellation, preventing booking on blocked seats, and upgrading an older seat table. V1–V3 test modules are retained. Also manually verify narrow viewport layouts and Ethereal delivery when configured. See [requirements](docs/requirements.md), [UML & PlantUML](docs/uml.md), [database design](docs/database-design.md), [email guide](docs/email-development.md), [change history](CHANGELOG.md), [v4.0 GitHub release notes](docs/github-release-v4.0.md), and [V4 change report](docs/version-4-changes.pdf).
+V1–V4 integration tests remain, and `tests/test_reports.py` adds admin authorization, report content, CSV-injection escaping, filtering, PDF generation and security-header checks. Locally verify SMTP, mobile viewports, backup/restore, concurrency and reverse-proxy behavior separately.
 
-## Security and limitations
+## Documentation and release
 
-Secrets and live databases are excluded by `.gitignore`. Flask-WTF protects state-changing requests against CSRF, hashed credentials are never displayed, and all admin roles are enforced on the server. Blocking rules also have SQLite transaction triggers. For an internet-facing release, add true migrations, dedicated operator accounts, auditing, rate limits, a robust task/email queue, HTTPS, secure cookies, observability and deployment configuration. This version has no payments, ticket delivery, refunds, order batching, seat holds, websocket push, or guaranteed email delivery.
+- [User Manual](docs/user-manual.md)
+- [Admin Manual](docs/admin-manual.md)
+- [Installation & Deployment Guide](docs/installation-deployment.md)
+- [Requirements & acceptance criteria](docs/requirements.md)
+- [UML / PlantUML](docs/uml.md)
+- [Database Design](docs/database-design.md)
+- [Security guidance](SECURITY.md)
+- [Changelog (v1–v5)](CHANGELOG.md)
+- [GitHub v5.0 release description](docs/github-release-v5.0.md)
+- [Version 5 PDF change report](docs/version-5-changes.pdf)
+
+GitHub release tag: **`v5.0`**. No secrets, local database, generated cache or virtual environments are part of the ZIP. Pin exact dependency versions and complete security testing prior to a public deployment.

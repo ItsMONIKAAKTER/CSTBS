@@ -346,3 +346,29 @@ a.metric-card:hover { border-color: #aacbd2; background: #eaf5f4; }
 .seat-button.is-blocked, .seat-button.is-blocked:disabled { background: #fff1d6; color: #98672d; border-color: #ebbd6a; cursor: not-allowed; }
 @media (max-width: 950px) { .admin-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); } .admin-split { grid-template-columns: 1fr; } }
 @media (max-width: 540px) { .admin-metrics { grid-template-columns: 1fr 1fr; gap: 9px; } .metric-card { padding: 16px; } .admin-table { min-width: 680px; } .admin-panel-head { align-items: flex-start; flex-wrap: wrap; } .admin-tabs a { padding: 9px; font-size: .79rem; } .booking-filters { align-items: stretch; } .booking-filters .form-control { width: 100%; max-width: unset; } }
+
+/* V5: report center and final usability polish. */
+.reports-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; }
+.report-card { display: flex; flex-direction: column; padding: clamp(22px, 3vw, 35px); min-width: 0; }
+.report-card h2 { font-size: 1.6rem; margin: 10px 0 10px; }
+.report-card > p { color: var(--muted); font-size: .94rem; min-height: 80px; }
+.report-icon { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; background: #deefe9; color: #216a5a; font-weight: 900; }
+.report-form { margin-top: 12px; }
+.report-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: auto; padding-top: 12px; }
+.report-actions .button { padding: 12px 19px; }
+.report-preview { border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 17px 20px; margin: 12px 0 28px; }
+.report-preview span { font-weight: 750; }
+.report-preview ul { padding-left: 21px; margin: 9px 0 0; color: var(--muted); }
+.report-privacy { background: #fff7e8; border: 1px solid #f1deb8; color: #70552f; border-radius: 12px; padding: 16px 20px; font-size: .86rem; margin-top: 24px; }
+.workflow-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 20px; }
+.workflow-step { border: 1px solid var(--border); border-radius: 15px; padding: 25px; background: white; }
+.workflow-step strong { display: block; margin-bottom: 10px; font-size: 1.1rem; }
+.workflow-step p { color: var(--muted); font-size: .87rem; margin: 0; }
+.workflow-num { font-size: .8rem; color: #987036; font-weight: 900; letter-spacing: .1em; }
+@media (max-width: 780px) { .reports-grid { grid-template-columns: 1fr; } .report-card > p { min-height: 0; } .workflow-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .button, .event-card, .seat-button { transition: none; transform: none !important; } }
+.error-page { text-align: center; padding-block: clamp(65px, 10vw, 145px); max-width: 700px; }
+.error-page .error-code { font-size: clamp(4rem, 14vw, 8rem); line-height: 1; color: #e8edf3; font-weight: 900; margin: 12px 0 7px; }
+.error-page h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+.error-page > p:not(.error-code) { color: var(--muted); }
+.error-actions { display: flex; justify-content: center; align-items: center; gap: 25px; flex-wrap: wrap; margin-top: 30px; }

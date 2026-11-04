@@ -1,4 +1,4 @@
-"""CSRF-protected account and event forms for CSTBS Version 2."""
+"""CSRF-protected account and event forms, with bounded server validation."""
 
 from flask_wtf import FlaskForm
 from wtforms import (
@@ -40,7 +40,7 @@ class RegisterForm(FlaskForm):
 
     full_name = StringField("Full name", validators=[DataRequired(), Length(min=2, max=120)])
     email = StringField("Email address", validators=EMAIL_VALIDATORS)
-    password = PasswordField("Password", validators=[DataRequired(), Length(min=8, max=128)])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=12, max=128)])
     confirm_password = PasswordField(
         "Confirm password",
         validators=[DataRequired(), EqualTo("password", message="Passwords must match.")],
@@ -63,7 +63,7 @@ class EventForm(FlaskForm):
         validators=[InputRequired()],
     )
     price = DecimalField(
-        "Entry price (USD)", places=2, validators=[InputRequired(), NumberRange(min=0)]
+        "Entry price (USD)", places=2, validators=[InputRequired(), NumberRange(min=0, max=100000)]
     )
     submit = SubmitField("Save event")
 
