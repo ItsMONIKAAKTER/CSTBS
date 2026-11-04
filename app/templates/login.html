@@ -22,7 +22,7 @@
             {{ form.submit(class='button button-primary button-full') }}
         </form>
         <p class="auth-switch">Student? <a href="{{ url_for('main.register') }}">Register with Student ID</a></p>
-        <p class="auth-switch">Administrator? <a href="{{ url_for('main.register_admin') }}">Register with an admin key</a></p>
+        <p class="auth-switch">Administrator? <a href="{{ url_for('main.admin_login') }}">Sign in with a one-time key</a></p>
     </div>
 </section>
 {% endblock %}

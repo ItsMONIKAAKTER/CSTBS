@@ -1,3 +1,26 @@
+# Requirements Update — CSTBS v5.2
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| FR-52-01 | No public admin registration | GET `/register/admin` redirects to `/admin/login`; POST cannot register users. |
+| FR-52-02 | Initial admin bootstrap requires trusted terminal | Local `python run.py` prompts for email/name when no admin exists; no code, `.env`, Notepad or SQL edits. |
+| FR-52-03 | Admin login uses email + one-time key | Login key is attached to one existing admin user, expires within 20 minutes and is single-use. |
+| FR-52-04 | Direct dashboard after admin login | Valid POST `/admin/login` redirects to `/admin/` and creates Flask-Login session. |
+| FR-52-05 | Lost key recovery | `flask admin-key EMAIL` immediately prints a new key; issuing it revokes earlier unused keys. |
+| FR-52-06 | Admin invitation UI changed to targeted key UI | Admin Users page can generate 20-minute keys for existing admins; promotion remains protected. |
+| FR-52-07 | Students remain unchanged | Student registration requires a unique 6-20 char student ID; login uses email/password; no escalation. |
+| FR-52-08 | Existing bookings and roles survive | V5.2 schema update adds target recipient field and invalidates legacy registration keys only. |
+| FR-52-09 | Local setup requires no secret editing | Private stable development SECRET_KEY generated automatically in instance when missing; production requires explicit configuration. |
+| SEC-52-01 | Key material stored only hashed | HMAC-SHA256 token fingerprint; no raw key persists in DB, source or config. |
+| SEC-52-02 | Key tied to email and admin account | Wrong email, role, expired, replayed or replaced token is rejected. |
+| SEC-52-03 | Admin password cannot bypass key | Admin users are redirected away from common password login. |
+
+## Preserved V5.1 requirements
+
+Students still require unique student IDs, bookings stay free (CNY ¥0.00), admin controls remain role-protected, seat inventory remains conflict-safe, and reports are PDF and CSV.
+
+---
+
 # Requirements Update — CSTBS v5.1
 
 - **FR-51-01:** Visitor can create a student account only with full name, email, password and a unique 6–20-character Student ID. Student role is server-assigned.

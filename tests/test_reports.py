@@ -10,6 +10,7 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app import create_app, db
+from app.admin_keys import issue_login_key
 from app.models import Booking, Event, Seat, User
 
 
@@ -49,12 +50,18 @@ class ReportTests(unittest.TestCase):
         self.ctx.pop()
 
     def sign_in(self, email):
-        login = self.client.get("/login")
+        user = db.session.scalar(select(User).where(User.email == email))
+        is_admin = user.role == "admin"
+        route = "/admin/login" if is_admin else "/login"
+        login = self.client.get(route)
         match = re.search(rb'name="csrf_token"[^>]+value="([^"]+)"', login.data)
         self.assertIsNotNone(match)
-        result = self.client.post("/login", data={
-            "csrf_token": match.group(1).decode(), "email": email,
-            "password": "StrongPass123"})
+        payload = {"csrf_token": match.group(1).decode(), "email": email}
+        if is_admin:
+            payload["admin_key"] = issue_login_key(user)
+        else:
+            payload["password"] = "StrongPass123"
+        result = self.client.post(route, data=payload)
         self.assertEqual(result.status_code, 302)
 
     def test_reports_forbid_guests_and_non_admins(self):

@@ -4,14 +4,14 @@ from pathlib import Path
 import sqlite3
 
 import click
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, request, url_for
 from flask_login import LoginManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_mail import Mail
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect, CSRFError
-from sqlalchemy import select, event as sqla_event
+from sqlalchemy import select, func, event as sqla_event
 from sqlalchemy.engine import Engine
 
 from config import Config
@@ -83,6 +83,13 @@ def create_app(test_config=None):
     login_manager.login_view = "main.login"
     login_manager.login_message_category = "info"
 
+    @login_manager.unauthorized_handler
+    def login_required_handler():
+        """Send anonymous admin visitors to the correct, key-only login page."""
+        if request.path.startswith("/admin/"):
+            return redirect(url_for("main.admin_login"))
+        return redirect(url_for("main.login", next=request.full_path))
+
     from .models import User, AdminInvitation  # Register all SQLAlchemy models.
     from .routes import main
     from .admin import admin
@@ -138,11 +145,13 @@ def create_app(test_config=None):
         )
         from .seating import backfill_empty_event_seats
         from .migrations_v51 import upgrade_v51
+        from .migrations_v52 import upgrade_v52
         db.create_all()
         upgrade_v1_user_schema()
         upgrade_v2_booking_constraints()
         upgrade_v3_seat_blocking()
         upgrade_v51()
+        upgrade_v52()
         backfill_empty_event_seats()
 
     if app.config.get("APP_ENV") != "production":
@@ -173,27 +182,55 @@ def create_app(test_config=None):
             raise click.ClickException(str(exc)) from exc
         click.echo(result)
 
+    @app.cli.command("admin-setup")
+    @click.option("--email", prompt="Administrator email", help="Email for first administrator")
+    @click.option("--name", default="University Administrator", prompt="Administrator name")
+    def admin_setup_command(email, name):
+        """First admin provisioning: trusted operator CLI, no source/env edits."""
+        from .admin_keys import provision_first_admin, print_terminal_login_key
+        try:
+            user = provision_first_admin(email, name)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        print_terminal_login_key(user, bootstrap=True)
+
+    @app.cli.command("admin-key")
+    @click.argument("email")
+    def admin_key_command(email):
+        """Issue a new 20-minute login key to an existing admin in this terminal."""
+        from .admin_keys import normalize_email, print_terminal_login_key
+        try:
+            normalized = normalize_email(email)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
+        user = db.session.scalar(select(User).where(
+            User.email == normalized, User.role == "admin"))
+        if user is None:
+            raise click.ClickException("No admin with that email. Use admin-setup first, "
+                                       "or promote a user in Admin > Users.")
+        print_terminal_login_key(user)
+
     @app.cli.command("reset-bootstrap-key")
-    def reset_bootstrap_key_command():
-        """Recover initial registration key (requires terminal access)."""
-        from sqlalchemy import func
-        from .admin_keys import issue_key, revoke_unused_bootstrap
-        if db.session.scalar(select(func.count(User.id)).where(User.role == "admin")):
-            raise click.ClickException("An admin already exists; create invitations in /admin/users.")
-        revoke_unused_bootstrap()
-        key = issue_key(bootstrap=True, minutes=60)
-        click.echo(f"New one-time administrator key (60 minutes): {key}")
-        click.echo("Register at /register/admin. Keep this terminal output private.")
+    def legacy_key_command():
+        """Guide users of V5.1 to the new explicit admin key workflow."""
+        raise click.ClickException("V5.2 uses admin-key EMAIL (existing admin), "
+                                   "or admin-setup (first admin).")
 
     @app.cli.command("set-role")
     @click.argument("email")
     @click.argument("role", type=click.Choice(["student", "staff", "admin"]))
     def set_role_command(email, role):
-        """Assign an account's role locally, never through public registration."""
+        """Local operator role adjustment for recovery; no public escalation."""
         normalized_email = email.strip().lower()
         user = db.session.scalar(select(User).where(User.email == normalized_email))
         if user is None:
-            raise click.ClickException("No user found. Register the account first.")
+            raise click.ClickException("No user found.")
+        if user.role == "admin" and role != "admin":
+            admin_count = db.session.scalar(select(func.count(User.id)).where(User.role == "admin"))
+            if admin_count <= 1:
+                raise click.ClickException("Cannot demote the last administrator.")
+        if role == "student" and not user.student_id:
+            raise click.ClickException("A student needs a unique Student ID first.")
         user.role = role
         db.session.commit()
         click.echo(f"Updated {normalized_email} to role: {role}")

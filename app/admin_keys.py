@@ -1,12 +1,14 @@
-"""One-time administrator invitations: unguessable, hashed, expiring, atomic.
+"""20-minute, one-time administrator login keys.
 
-Never store raw keys, put them in URLs, or place them in Flask session cookies.
-Local bootstrap creation is purposely disabled for TESTING/production startup.
+A key is bound to one existing admin account; no public admin registration or
+implicit privilege escalation. Only HMAC fingerprints are stored in SQLite.
+The plaintext key exists only in terminal output or one protected admin page.
 """
 
 from datetime import timedelta
 import hashlib
 import hmac
+import re
 import secrets
 
 from flask import current_app
@@ -15,66 +17,109 @@ from sqlalchemy import func, select, update
 from . import db
 from .models import AdminInvitation, User, utc_now
 
+KEY_MINUTES = 20
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def normalize_email(value):
+    email = (value or "").strip().lower()
+    if len(email) > 254 or not _EMAIL.fullmatch(email):
+        raise ValueError("Enter a valid administrator email address.")
+    return email
+
 
 def _fingerprint(key):
     secret = current_app.config["SECRET_KEY"].encode("utf-8")
     return hmac.new(secret, key.strip().encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def issue_key(*, bootstrap=False, created_by=None, minutes=60):
-    """Persist a hash; return raw key only to the caller once."""
+def issue_login_key(admin_user, *, created_by=None, minutes=KEY_MINUTES, bootstrap=False):
+    """Issue a key for an existing admin, invalidating their earlier unused keys."""
+    if admin_user is None or admin_user.id is None or admin_user.role != "admin":
+        raise ValueError("Keys can be issued only to existing administrators.")
+    if not 1 <= minutes <= 20:
+        raise ValueError("The key lifetime must be at most 20 minutes.")
+    now = utc_now()
+    db.session.execute(update(AdminInvitation).where(
+        AdminInvitation.target_user_id == admin_user.id,
+        AdminInvitation.used_at.is_(None)
+    ).values(used_at=now))
     key = "CSTBS-" + secrets.token_urlsafe(24)
-    row = AdminInvitation(token_hash=_fingerprint(key), bootstrap=bootstrap,
-        created_by_id=created_by, expires_at=utc_now() + timedelta(minutes=minutes))
+    row = AdminInvitation(
+        token_hash=_fingerprint(key), bootstrap=bootstrap,
+        target_user_id=admin_user.id, created_by_id=created_by,
+        expires_at=now + timedelta(minutes=minutes))
     db.session.add(row)
     db.session.commit()
     return key
 
 
-def active_bootstrap_exists():
-    return db.session.scalar(select(AdminInvitation.id).where(
-        AdminInvitation.bootstrap.is_(True),
-        AdminInvitation.used_at.is_(None),
-        AdminInvitation.expires_at > utc_now()).limit(1)) is not None
+def consume_login_key(email, key):
+    """Atomically redeem a still-valid key for its exact admin email.
 
-
-def ensure_local_bootstrap_key():
-    """Output an initial key on the dev terminal, once per active key lifetime."""
-    if db.session.scalar(select(func.count(User.id)).where(User.role == "admin")):
+    Caller commits immediately before establishing a login session.
+    Never creates users or changes roles.
+    """
+    try:
+        normalized = normalize_email(email)
+    except ValueError:
         return None
-    if active_bootstrap_exists():
+    if not isinstance(key, str) or not 20 <= len(key) <= 160:
         return None
-    key = issue_key(bootstrap=True, minutes=60)
-    print("\n" + "=" * 62 + "\nCSTBS INITIAL ADMIN REGISTRATION (LOCAL DEVELOPMENT)\n"
-          "Open http://127.0.0.1:5000/register/admin\n"
-          f"ONE-TIME KEY: {key}\n"
-          "Expires in 60 minutes. Never share this key or commit logs.\n"
-          "If lost, run: python -m flask --app run.py reset-bootstrap-key\n"
-          + "=" * 62 + "\n", flush=True)
-    return key
-
-
-def find_valid_invitation(key):
-    """Find by keyed fingerprint, never by comparing plaintext stored secrets."""
-    return db.session.scalar(select(AdminInvitation).where(
+    user = db.session.scalar(select(User).where(
+        User.email == normalized, User.role == "admin"
+    ))
+    if user is None:
+        return None
+    now = utc_now()
+    invitation_id = db.session.scalar(select(AdminInvitation.id).where(
         AdminInvitation.token_hash == _fingerprint(key),
+        AdminInvitation.target_user_id == user.id,
         AdminInvitation.used_at.is_(None),
-        AdminInvitation.expires_at > utc_now()).limit(1))
+        AdminInvitation.expires_at > now
+    ).limit(1))
+    if invitation_id is None:
+        return None
+    claimed = db.session.execute(update(AdminInvitation).where(
+        AdminInvitation.id == invitation_id,
+        AdminInvitation.target_user_id == user.id,
+        AdminInvitation.used_at.is_(None),
+        AdminInvitation.expires_at > utc_now()
+    ).values(used_at=utc_now(), used_by_id=user.id))
+    if claimed.rowcount != 1:
+        db.session.rollback()
+        return None
+    db.session.commit()
+    return user
 
 
-def consume_invitation(invite, new_user_id):
-    """Atomic consume prevents two concurrent successful uses of one key."""
-    if invite.bootstrap and db.session.scalar(select(func.count(User.id)).where(
-            User.role == "admin", User.id != new_user_id)):
-        return False
-    result = db.session.execute(update(AdminInvitation).where(
-        AdminInvitation.id == invite.id, AdminInvitation.used_at.is_(None),
-        AdminInvitation.expires_at > utc_now()).values(
-            used_at=utc_now(), used_by_id=new_user_id))
-    return result.rowcount == 1
+def provision_first_admin(email, full_name="University Administrator"):
+    """Create the very first admin only from a trusted local terminal command."""
+    email = normalize_email(email)
+    if db.session.scalar(select(func.count(User.id)).where(User.role == "admin")):
+        raise ValueError("An administrator already exists. Use an existing admin account.")
+    if db.session.scalar(select(User.id).where(User.email == email)) is not None:
+        raise ValueError("Email already belongs to an account. Choose a different email.")
+    name = full_name.strip()
+    if not 2 <= len(name) <= 120:
+        raise ValueError("Name must be 2 to 120 characters.")
+    user = User(full_name=name, email=email, role="admin")
+    # No password is displayed or required for admin key-only login.
+    user.set_password(secrets.token_urlsafe(48))
+    db.session.add(user)
+    db.session.commit()
+    return user
 
 
-def revoke_unused_bootstrap():
-    db.session.execute(update(AdminInvitation).where(
-        AdminInvitation.bootstrap.is_(True), AdminInvitation.used_at.is_(None)
-    ).values(used_at=utc_now()))
+def print_terminal_login_key(user, *, bootstrap=False):
+    key = issue_login_key(user, bootstrap=bootstrap)
+    print("\n" + "=" * 66 + "\n"
+          "CSTBS ADMIN LOGIN KEY - LOCAL TERMINAL\n"
+          f"Administrator: {user.email}\n"
+          f"ONE-TIME KEY: {key}\n"
+          "Valid: 20 minutes | One login only\n"
+          "Open: http://127.0.0.1:5000/admin/login\n"
+          "This key is already stored securely. Do not edit any file.\n"
+          "If it expires: python -m flask --app run.py admin-key EMAIL\n"
+          + "=" * 66 + "\n", flush=True)
+    return key

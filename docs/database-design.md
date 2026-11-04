@@ -1,88 +1,23 @@
-# V5.1 Database Additions — Student IDs & Admin Invitations
+# Database Design — CSTBS v5.2
 
-**User** adds nullable `student_id VARCHAR(20) UNIQUE`. New student registration requires a value, uppercase-normalized to 6–20 ASCII letters/digits. Existing accounts without IDs remain valid while upgrading. Admins and staff do not require IDs. Unique index `uq_users_student_id` prevents duplicates even when concurrent registrations race.
+The core `User`, `Event`, `Seat` and `Booking` relational schema from earlier releases remains unchanged. Students have a unique nullable-for-legacy `User.student_id`; fresh student registration requires 6–20 alphanumeric characters. `User.role` is `student`, `staff` or `admin`, controlled by the server.
 
-**AdminInvitation** is a new SQLAlchemy model/table `admin_invitations` with `id`, `token_hash` (64 hex chars, unique), `bootstrap` (boolean), `created_by_id` (nullable User FK), `used_by_id` (nullable User FK), `created_at`, `expires_at`, and `used_at`. Hashing uses HMAC-SHA256 with Flask `SECRET_KEY`; **no raw invitation is stored**. A guarded SQL UPDATE changes `used_at` once. A bootstrap invitation is accepted only while there are no other administrators.
+## Administrator login-key records
 
-**Event.price** and **Booking.price_at_booking** columns remain for schema compatibility. On upgrade all event catalog price values are normalized to `0`. All newly created booking snapshots are `0`. Legacy Booking snapshots are retained (not interpreted as money collected or shown in UI or reports). Display currency is RMB (CNY, ¥), and no payment processing exists.
+The existing V5.1 `admin_invitations` table is retained for compatibility but now represents **administrator login keys**, not registration invitations:
 
-**SQLite migration:** `app/migrations_v51.py` runs as part of schema initialization; it adds the nullable ID column and unique index and updates event prices. `db.create_all()` creates `admin_invitations` for new/legacy databases. This is intentionally idempotent for V5 SQLite databases; backup and test before use. Production requires explicit `flask init-db`.
+| Column | Meaning |
+|---|---|
+| `id` | PK |
+| `token_hash` | Unique HMAC-SHA256 fingerprint (never plaintext) |
+| `target_user_id` | FK `users.id`, required by the V5.2 login verification logic |
+| `created_by_id` | Optional admin who issued via dashboard |
+| `bootstrap` | True for first local setup |
+| `created_at`, `expires_at` | UTC timestamps; lifetime 20 minutes |
+| `used_at`, `used_by_id` | Audit of successful use or revocation |
 
----
+V5.1 tokens lacking `target_user_id` are invalidated. New keys are only issued for `User.role='admin'`, and verification requires both matching HMAC and the **same admin email** as the target FK. Atomic `UPDATE ... WHERE used_at IS NULL AND expires_at > now` prevents replay. New keys revoke previous unused keys to the same admin.
 
-## V5 database design (historical context)
+## Compatibility
 
-# CSTBS Version 5 — SQLAlchemy and SQLite Design
-
-## Entity relationships
-
-- `User (1) → Booking (0..*)`: user owns each reservation; role `student | staff | admin`.
-- `Event (1) → Seat (0..*)`: each seat belongs to a single event.
-- `Seat (1) → Booking (0..*)`: one seat can have many *cancelled* historical bookings but only one *active* booking.
-- Section is a **string attribute of Seat** (not a separate `Section` table). Admin section operations create/rename/remove groups of seats while retaining the same seat IDs through renames.
-
-## Versioned tables
-
-| Table | Core columns | V4 impact |
-| --- | --- | --- |
-| `users` | id, full_name, email UNIQUE, password_hash, role, created_at | Existing V2 roles; admin UI may change other users. |
-| `events` | id, title, category, description, venue, starts_at, price | V2 event CRUD retained. |
-| `seats` | id, event_id FK, section, row_label, number, **is_blocked** | **New V4 BOOLEAN NOT NULL DEFAULT 0**, plus existing unique `(event_id, section, row_label, number)` and positive number check. |
-| `bookings` | id, user_id FK, seat_id FK, status, price_at_booking, created_at | Existing V3 records retained; admin can cancel but not delete. |
-
-### Active reservation uniqueness (V3, retained)
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_seat
-ON bookings (seat_id) WHERE status = 'reserved';
-```
-
-### Blocked-seat integrity (new V4)
-
-Three SQLite triggers in `app/migrations.py` reject:
-
-1. Inserting a `reserved` booking when `seats.is_blocked = 1`.
-2. Updating a booking to `reserved` (or moving a reserved booking to another seat) when its target seat is blocked.
-3. Setting `seats.is_blocked = 1` while a `reserved` booking exists on that seat.
-
-The routes also do fresh checks for understandable error messages, but the database triggers protect write races. Booking failures return a conflict message, and no partial multi-seat reservation is saved.
-
-### V3-to-V4 SQLite upgrade
-
-Local startup executes `db.create_all()` then explicit compatibility upgrades in this order: legacy V1 role, V2 booking price/index, **V3-to-V4 seat-blocking column and triggers**. A pre-existing V3 `seats` table gains the column through:
-
-```sql
-ALTER TABLE seats ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT 0;
-```
-
-A fresh database already has the column through SQLAlchemy model creation. Existing rows remain present and initially unblocked. Re-running the upgrade is idempotent via column introspection and `CREATE TRIGGER IF NOT EXISTS`. Always back up your database before upgrading. These are limited **development compatibility scripts, not general production migrations**.
-
-## Data lifecycle
-
-1. Admin publishes an event: `Event` plus 60 default `Seat` rows.
-2. Admin may add sections (`Seat.section`, `row_label`, `number`), rename sections or toggle `is_blocked` for unreserved seats.
-3. User selects unblocked/unreserved seats: booking review verifies event, row membership and availability.
-4. Confirmation creates one `Booking` per seat with `price_at_booking`, atomically; SQLite constraints/triggers enforce safety.
-5. After commit, application sends/logs confirmation email. Failed mail does not change saved bookings.
-6. Cancellation flips `Booking.status` to `cancelled`, keeps the row, frees the seat and sends/logs cancellation email. An admin may perform this for any owner.
-7. Event and section removal refuse any booking record, including cancelled rows, to avoid orphaning history.
-
-## Limitations
-
-`Seat.section` is denormalized, sufficient for V4. Seat blocks are stored per event-seat rather than venue-wide physical locations. Changes to event or seat titles later affect how old bookings are displayed; add immutable snapshots or a normalized venue layout in a later production design. Calendar times remain campus-local naive datetime. SQLite write concurrency is appropriate for development, not a large public ticket sale.
-
-
-## V5 reporting (no schema changes)
-
-`app/reports.py` reads V2–V4 `User`, `Event`, `Seat`, and `Booking` records without new columns or tables. It provides:
-
-- **Booking exports:** joined booking→seat→event and booking→user; optional exact `status` and `event_id` filters. An active-value subtotal uses immutable `price_at_booking`, not the current event price.
-- **Event exports:** correlated SQL counts for seating total, blocked seats and active bookings; available seats are derived at export time.
-- **Confidentiality:** admin-only views; PDF/CSV bytes never written to static files or the database; explicit no-store headers; row caps.
-- **CSV safety:** dangerous spreadsheet formula prefixes in untrusted text are prefixed with a single quote; original Unicode is retained by UTF-8 CSV. PDF uses standard built-in font and replaces unsupported glyphs.
-
-V5 enables SQLite's `PRAGMA foreign_keys=ON` on each application SQLite connection, so orphan references are now rejected by the database. Keep a consistent database schema and do not disable this for convenience.
-
-## Deployment structure note
-
-In `APP_ENV=development`, the factory initializes the schema using existing idempotent compatibility scripts. For `APP_ENV=production`, schema initialization/upgrade is **explicit** using `flask init-db`, not automatic on every web process start. This command remains a limited SQLite compatibility mechanism; reviewed migrations, rollback verification, locks, and scheduled maintenance are needed on a production system. V5 reporting does not require migration from V4.
+`app/migrations_v52.py` adds `target_user_id` and its index with SQLite `ALTER TABLE`/`CREATE INDEX` if missing, and revokes legacy unbound tokens. It preserves student IDs, all users, events, seats, existing bookings, historic amounts and role records. Back up the DB before upgrading and use reviewed migrations for production deployment.

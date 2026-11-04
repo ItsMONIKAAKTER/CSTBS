@@ -18,7 +18,7 @@ from .authz import admin_required
 from .forms import CreateSectionForm, RenameSectionForm, RoleForm, AdminInviteForm, StudentIDForm
 from .models import Booking, Event, Seat, User
 from .notifications import notify_booking_cancelled
-from .admin_keys import issue_key
+from .admin_keys import issue_login_key
 
 admin = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -213,8 +213,15 @@ def generate_admin_key():
     form = AdminInviteForm()
     if not form.validate_on_submit():
         abort(400)
-    key = issue_key(created_by=current_user.id, minutes=60)
-    response = render_template("admin/invitation_created.html", key=key)
+    try:
+        target_id = int(form.target_user_id.data)
+    except (ValueError, TypeError):
+        abort(400)
+    target = db.session.get(User, target_id)
+    if target is None or target.role != "admin":
+        abort(400)
+    key = issue_login_key(target, created_by=current_user.id)
+    response = render_template("admin/invitation_created.html", key=key, target=target)
     from flask import make_response
     result = make_response(response)
     result.headers["Cache-Control"] = "no-store, private"

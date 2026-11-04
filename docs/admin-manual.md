@@ -1,111 +1,42 @@
-# Admin Manual — CSTBS v5.1
+# Administrator Manual — CSTBS v5.2
 
-## First administrator: no PyCharm/SQL user edits
+## First administrator: zero Notepad or code editing
 
-1. In development, run `python run.py` after configuring `.env` and initializing the DB.
-2. If no administrator exists, a random **single-use registration key** prints in the terminal. It expires after 60 minutes. Treat terminal output as a secret.
-3. Open `/register/admin`, enter your name, email, password and key. Your account gets the `admin` role only after the key is atomically consumed.
-4. If the initial key is lost or expires, and no admin exists, run `python -m flask --app run.py reset-bootstrap-key` in a trusted terminal. This invalidates previous unused bootstrap keys.
-5. In production, bootstrap must be done explicitly with the command above, not printed by web-worker startup.
+1. Open PowerShell inside the project, activate `.venv`, and run `python run.py`.
+2. If no administrator exists, the server prompts for **administrator email** and **full name**; answer in PowerShell. This creates the admin account in SQLite with a securely random unusable password.
+3. Copy the key printed under `CSTBS ADMIN LOGIN KEY` in that terminal.
+4. Visit **http://127.0.0.1:5000/admin/login**, enter the same email and the key, then **Sign in to dashboard**.
+5. The key expires after **20 minutes** and is consumed at successful login. Your authenticated session continues independently of key expiry.
 
-## Invite additional administrators from the website
+**No admin registration page and no need to paste a key into Notepad, `.env`, PyCharm or SQLite.**
 
-1. Sign in as admin, open **Admin dashboard → Users**.
-2. Select **Generate one-time admin key**. A CSRF-protected POST creates a new 60-minute invitation.
-3. Copy it from the single-use display and share privately with the intended staff member.
-4. That person uses `/register/admin` to create their own account. Each key supports one successful registration only.
-5. Do not save keys in the repository, email to public lists, or paste them into screenshots.
+## Login again / expired or lost key
 
-## Manage student accounts
+From a **second PowerShell window** in this folder (with `.venv` active):
 
-- The **Users** table shows a Student ID input for each student. Assign or correct a 6–20-character unique ID and select **Save ID**.
-- Promote/demote roles with the adjacent form; the server rejects an attempt to turn an account lacking a Student ID into a student.
-- Admins cannot demote themselves; the last admin remains protected.
-- Existing V5 student records without IDs remain readable and can be completed by the owner at `/account`.
-
-## Events and free admissions
-
-Admin **Events** allows full CRUD, while the **Seats** screen manages sections and blocks. All events have **free admission (CNY ¥0.00)** and there is no price field. Reservations require no payment gateway or checkout credentials. Delete an event only if it has no booking history.
-
-## Bookings and reports
-
-Admins can view/filter/cancel all bookings, export PDF/CSV event and booking reports, and send cancellation emails via the configured Flask-Mail service. Exports show free admission (CNY 0.00), not revenue. Preserve student data privacy and download reports only to authorized devices.
-
----
-
-## Previous V5 admin manual (archived context)
-
-# CSTBS v5.0 — Administrator Manual
-
-**Audience:** trusted campus administrators. All `/admin` routes require an authenticated `admin` account. A `staff` user can reserve seats but does not administer the system.
-
-## 1. Obtain administrator access
-
-Register your account through the website, then ask a trusted operator with terminal access to run:
-
-```bash
-python -m flask --app run.py set-role admin@campus.edu admin
+```powershell
+python -m flask --app run.py admin-key admin@university.edu
 ```
 
-Replace the email with the registered address. Sign out and sign back in, then open **Admin dashboard**. Never give admin privileges to untrusted accounts. The UI prevents an admin from changing their own role and prevents removing the final admin through the web panel.
+The new key is printed immediately. Copy it into `/admin/login`. Issuing a new key revokes older unused keys for the same account. If no admin was ever provisioned, use `python -m flask --app run.py admin-setup`, which asks for the first email/name.
 
-## 2. Dashboard (`/admin/`)
+If multiple admin users exist, starting `python run.py` prompts which admin email should receive a new key. Admins are **never** authenticated solely by knowing an arbitrary email; keys are tied to an existing admin record.
 
-The dashboard shows total registered users, events, active reservations and blocked seats, plus recent activity. It links to Events, Users, Bookings and **Reports**. Figures are snapshots; refresh to update.
+## Add another administrator without admin registration
 
-## 3. Manage events (`/admin/events`)
+1. New person registers as a student (requires a Student ID) or uses an already-existing account.
+2. While signed in as admin, open **Admin Dashboard → Users** and change that account's role to **admin**. This requires an authorized admin session.
+3. Click **Generate login key** on that administrator's row. The 20-minute key is shown once on a protected no-cache page; share it privately with that person. They sign in at `/admin/login` with the email on that row.
+4. Existing admins can regenerate their own keys in the local PowerShell terminal at any time.
 
-- **Create:** enter event title, category, description, venue, future campus-local start time and USD price. New events receive 60 default seats in the `Main` section.
-- **Edit:** update valid event details. Historical booking prices are stored separately at booking time; editing the current event price does not rewrite existing booking price snapshots.
-- **Delete:** delete only events without any booking history. Events with even cancelled reservations are protected from deletion so historical data remains intact.
+## Administration features retained
 
-Double-check event times before publishing; current dates are stored as campus-local naive datetimes, so one consistent timezone must be documented for your venue.
+- `/admin/`: system metrics and recent booking activity.
+- `/admin/events`: manage events and schedules.
+- `/admin/events/<event_id>/seats`: block/unblock seats and manage seating sections.
+- `/admin/users`: roles, Student IDs and one-time admin login keys.
+- `/admin/bookings`: manage and cancel reservations.
+- `/admin/reports/`: PDF and CSV booking/event reports.
+- Booking/cancellation email notifications via console backend or configured SMTP.
 
-## 4. Manage seats and sections
-
-Open **Events & seats → Manage seats** for the desired event.
-
-- **Block / unblock:** toggle an available seat. Blocking a seat with an active reservation is prohibited by both route checks and SQLite triggers.
-- **Add a section:** use a distinct 2–30 character name, 1–20 rows and 1–30 seats per row. The app creates numbered seats.
-- **Rename:** change a section label without reassigning seat IDs or historical bookings.
-- **Delete a section:** permitted only if no seat in that section has ever been booked.
-
-Blocking changes public availability immediately on the next poll (within about five seconds). Do not use the seat-block feature as a temporary user seat hold.
-
-## 5. Manage users (`/admin/users`)
-
-Set another user's role to **student**, **staff** or **admin**. Only the admin role grants admin-panel permissions. Check email identity before promotion; role editing is a security-sensitive action. Admins cannot edit their own role in the browser.
-
-## 6. Manage bookings (`/admin/bookings`)
-
-Use the status and event dropdowns to filter reservations, 25 entries per page. Click **Cancel** to revoke an active booking; the record stays in history, the seat becomes available, and the owner receives a cancellation notification or console preview. Review the owner and seat before cancelling; there is no undo operation.
-
-## 7. Create PDF and CSV reports (`/admin/reports/`)
-
-**Booking report:** choose status and optionally one event, then **Download CSV** or **Download PDF**. Data includes owner names and email addresses, seat labels, created-at timestamps, statuses and informational prices. **Cancelled** records remain visible.
-
-**Event report:** export events and seating counts to PDF or CSV. `Available = Total - Reserved - Blocked`. Note that the export is a current data snapshot; counts may change immediately after download.
-
-| Format | Best use | Limit |
-| --- | --- | --- |
-| PDF | Administrative meeting, readable landscape tables | 2,000 rows |
-| CSV | Spreadsheet pivot tables, data analysis | 10,000 rows |
-
-Exports are downloaded as attachments with no-cache response headers. **Treat them as confidential records** and share only with personnel authorized to access reservation/identity data. User-provided spreadsheet-like formulas are escaped in CSV. If an export is too large, narrow booking filters; for larger systems, implement an audited asynchronous reporting service.
-
-## 8. Email operations
-
-`MAIL_BACKEND=console` writes notification previews to restricted server logs. `MAIL_BACKEND=smtp` sends via Flask-Mail to the configured SMTP service. Emails are sent after a database commit; delivery failures do not undo bookings. This version does not retry email or maintain an outbox. Test confirmation/cancellation with Ethereal before connecting a real provider. Do not store real recipient data in exposed demo logs.
-
-## 9. Demo day checklist
-
-1. Run `seed-events` once; optionally configure `DEMO_SEED_PASSWORD` and `seed-demo` in development mode only.
-2. Open Home and Events and test responsive navigation.
-3. Sign in as demo student; book/cancel a free seat; observe console email previews.
-4. Sign in as demo admin; show KPIs, seat blocking and user role editor.
-5. Filter bookings, export both PDF/CSV formats and inspect report metadata.
-6. Explain that the prototype does **not** charge cards or issue tickets.
-
-## 10. Operational checklist
-
-Back up SQLite before updating versions; retain encrypted backups and test restore. Monitor 403, 429 and exception logs. Review permissions and admin membership periodically. Configure a stable secret, HTTPS, trusted hosts, SMTP credentials and shared rate-limit store before deployment. Consult [Installation & Deployment](installation-deployment.md) and [SECURITY.md](../SECURITY.md).
+The system is for **free university reservations**; no payment gateway. Access is protected by Flask-Login, CSRF, per-IP request limits and role checks. Keep key output, emails, student IDs and exported reports confidential.

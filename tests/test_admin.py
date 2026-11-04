@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import create_app, db
+from app.admin_keys import issue_login_key
 from app.models import Booking, Event, Seat, User
 
 
@@ -53,6 +54,12 @@ class AdminTests(unittest.TestCase):
         return value.group(1).decode()
 
     def sign_in(self, email):
+        user = db.session.scalar(select(User).where(User.email == email))
+        if user.role == "admin":
+            key = issue_login_key(user)
+            return self.client.post("/admin/login", data={
+                "csrf_token": self.csrf("/admin/login"), "email": email,
+                "admin_key": key})
         return self.client.post("/login", data={"csrf_token": self.csrf("/login"),
             "email": email, "password": "StrongPass123"})
 
