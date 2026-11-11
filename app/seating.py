@@ -1,4 +1,4 @@
-"""Default seat inventory and availability helpers."""
+"""Default seat inventory and availability helpers for Version 3."""
 
 from sqlalchemy import select
 

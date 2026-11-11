@@ -1,4 +1,4 @@
-/* Responsive, framework-free styling. */
+/* CSTBS Version 1: responsive, framework-free styling. */
 :root {
     color-scheme: light;
     --ink: #14243b;
@@ -191,7 +191,7 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
     *, *::before, *::after { transition: none !important; }
 }
 
-/* Authenticated navigation, account and event management. */
+/* Version 2: authenticated navigation, account and admin event management. */
 .logout-form { margin: 0; }
 .logout-button { border: 1px solid var(--border); background: var(--white); color: var(--ink); padding: 10px 15px; border-radius: 9px; font: inherit; font-weight: 750; cursor: pointer; }
 .logout-button:hover { color: #a36523; background: var(--surface); }
@@ -291,7 +291,7 @@ h2 { font-size: clamp(1.6rem, 3vw, 2.35rem); }
 @media (max-width: 900px) { .seat-layout { grid-template-columns: 1fr; } .seat-checkout { position: static; } }
 @media (max-width: 620px) { .history-card { flex-direction: column; align-items: flex-start; } .seat-card { padding: 17px; } .seat-legend { gap: 12px; } }
 
-/* Responsive operations dashboard and multi-section seating. */
+/* Version 4: responsive operations dashboard and multi-section seating. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .muted, .admin-help { color: var(--muted); font-size: .86rem; }
 .admin-page-title { padding-bottom: 22px; }
@@ -373,13 +373,13 @@ a.metric-card:hover { border-color: #aacbd2; background: #eaf5f4; }
 .error-page > p:not(.error-code) { color: var(--muted); }
 .error-actions { display: flex; justify-content: center; align-items: center; gap: 25px; flex-wrap: wrap; margin-top: 30px; }
 
-/* Student identity and admin invitation interface */
+/* V5.1 student identity + admin invitation interface */
 .invitation-key { overflow-wrap: anywhere; font: 700 clamp(1rem,2.8vw,1.4rem)/1.5 ui-monospace,Consolas,monospace; color: #123c68; background: #f0f5fa; border: 1px dashed #8fa8c1; border-radius: .65rem; padding: 1rem 1.2rem; margin: 1.1rem 0; }
 .student-id-inline { max-width: 450px; margin: 1rem 0; padding: 1rem 0; border-top: 1px solid #e3e8f1; }
 .student-id-admin { margin-top: .5rem; display: flex; flex-wrap: wrap; gap: .35rem; }
 .student-id-admin .form-control { min-width: 125px; max-width: 170px; }
 
-/* Stadium night / campus day theme. Smooth, accessible, no frameworks. */
+/* V5.3 - stadium night / campus day theme. Smooth, accessible, no frameworks. */
 :root {
   --ui-ink: #14233d;
   --ui-surface: rgba(255,255,255,.88);
@@ -492,7 +492,7 @@ html[data-theme="night"] .admin-table tr:hover {background: #233a59;}
   .theme-toggle,.seat-button{transition:none!important;}
 }
 
-/* Separate role dashboards and accessible stadium operations UI */
+/* V5.4 · Separate role dashboards and accessible stadium operations UI */
 .ops-control-panel { margin: 20px 0; }
 .ops-event-list, .student-tickets-list { display: grid; gap: 14px; }
 .ops-event-card, .student-ticket-row { display: flex; justify-content: space-between; align-items: center; gap: 22px; padding: 20px; border: 1px solid var(--border); border-radius: 16px; background: var(--white); }

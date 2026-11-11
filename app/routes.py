@@ -282,14 +282,8 @@ def admin_event_delete(event_id):
     if any_booking is not None:
         flash("This event has booking history and cannot be deleted.", "error")
     else:
-        # Delete event-owned inventory before the event itself. Gate.event_id
-        # is NOT NULL, so leaving a Gate attached would make SQLAlchemy try to
-        # orphan it with UPDATE gates SET event_id = NULL and fail the commit.
-        # Existing reservations above still prevent any destructive deletion.
         for seat in list(event.seats):
             db.session.delete(seat)
-        for gate in list(event.gates):
-            db.session.delete(gate)
         db.session.delete(event)
         db.session.commit()
         flash("Event deleted successfully.", "success")

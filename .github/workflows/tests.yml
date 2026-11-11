@@ -1,4 +1,4 @@
-name: CSTBS CI
+name: CSTBS v5.4 CI
 on:
   push:
   pull_request:

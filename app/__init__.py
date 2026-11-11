@@ -129,7 +129,7 @@ def create_app(test_config=None):
             db.session.execute(select(1)).scalar_one()
         except Exception:
             return jsonify(status="unavailable"), 503
-        return jsonify(status="ok")
+        return jsonify(status="ok", version="5.4")
 
     @app.errorhandler(CSRFError)
     def handle_csrf_error(_error):
@@ -266,8 +266,8 @@ def create_app(test_config=None):
 
     @app.cli.command("reset-bootstrap-key")
     def legacy_key_command():
-        """Guide operators to the supported admin recovery commands."""
-        raise click.ClickException("Use admin-key EMAIL (pending activation), "
+        """Guide users of V5.1 to the new explicit admin key workflow."""
+        raise click.ClickException("V5.3 uses admin-key EMAIL (pending activation), "
                                    "admin-reset EMAIL (password recovery), or admin-setup.")
 
     @app.cli.command("set-role")

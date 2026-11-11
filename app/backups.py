@@ -2,7 +2,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
-from contextlib import closing
 
 from flask import current_app
 from sqlalchemy import inspect
@@ -39,8 +38,8 @@ def sqlite_backup(*, version_guard=False):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
     dest = backup_dir / f"cstbs-preupgrade-{stamp}.sqlite3"
     # SQLite backup API gives a consistent snapshot even if WAL is enabled.
-    with closing(sqlite3.connect(str(path))) as source:
-        with closing(sqlite3.connect(str(dest))) as backup:
+    with sqlite3.connect(str(path)) as source:
+        with sqlite3.connect(str(dest)) as backup:
             source.backup(backup)
             result = backup.execute("PRAGMA integrity_check").fetchone()
             if result is None or result[0] != "ok":

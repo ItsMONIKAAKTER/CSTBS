@@ -85,10 +85,7 @@ class Event(db.Model):
     checkin_enabled = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
     seats = db.relationship("Seat", back_populates="event", order_by="(Seat.row_label, Seat.number)")
-    gates = db.relationship(
-        "Gate", back_populates="event", order_by="Gate.name",
-        cascade="all, delete-orphan",
-    )
+    gates = db.relationship("Gate", back_populates="event", order_by="Gate.name")
 
 
 class Gate(db.Model):

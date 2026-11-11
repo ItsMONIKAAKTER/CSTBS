@@ -1,21 +1,23 @@
-# CSTBS Security and Privacy
+# V5.4 stadium entry safeguards
 
-CSTBS manages university student identities and stadium entry credentials. The project should be deployed publicly only after full integration tests, an institutional privacy review and independent security assessment.
+- Entrance QR codes contain only opaque signed ticket credentials. They are validated against live DB state on every verification.
+- A QR scan/photo is **not** an admission decision. Only authorized staff/admin can submit the CSRF-protected check-in POST, which conditionally checks live reservation, assigned gate, event entry status, and one-use ticket state.
+- A valid ticket at a closed or wrong gate receives a non-fraudulent waiting status. An invalid/cancelled/used ticket is never admitted.
+- Images uploaded for QR decoding are bounded by upload bytes and pixel area, decoded on the local server using OpenCV/Pillow, and not persisted.
+- Gate selection, event ownership and admin actions are server-validated. Gate reassignment for a section with already checked-in tickets is prohibited.
+- SQLite migrations are backed up and preserve ticket signatures. Never commit DB/backups/secrets or rotate signing keys without a managed transition.
+- Live camera access requires browser permission and HTTPS/localhost. Photo uploads offer a fallback but must be tested on target campus devices.
+- This implementation is not certified for real-world physical access security. Use campus ID verification, monitoring, MFA/SSO for privileged roles, secure HTTPS infrastructure, and independent penetration/operational testing before deployment.
 
-## Security controls
+# CSTBS v5.3 — Security & Privacy Notes
 
-- Passwords are stored as Werkzeug hashes. Administrators activate their accounts using one-time, expiring, hashed keys and use passwords thereafter.
-- Students have one active ticket per event. Attendee names and Student IDs must match registered student accounts. Seat and ticket uniqueness are database-enforced.
-- Flask-Login sessions, role checks, global Flask-WTF CSRF protection and rate limiting protect state-changing actions.
-- Ticket QR codes contain only signed opaque identifiers; verification checks the current database record and event/gate status. Each QR is usable for check-in only once.
-- QR scanning is restricted to staff/admin accounts. Camera permissions require a secure browser context; the photo decoder accepts bounded image uploads and does not retain uploaded images.
-- PDFs and CSVs are admin-only; CSV data is escaped to avoid spreadsheet formula injection. Sensitive downloads use private no-cache headers.
-- SQLite foreign keys, uniqueness rules and triggers protect bookings, blocked seats and ticket identity.
-
-## Protect secrets and private data
-
-Never commit `.env`, local secret files, `instance/*.db`, backups, live tickets or student records. For production, set separate, persistent `SECRET_KEY` and `TICKET_SIGNING_KEY` values. Keep both stable across deployments, use HTTPS, secure cookies, a trusted host configuration, real SMTP, shared rate limiting, and regular recoverable backups.
-
-## Responsible disclosure
-
-Do not post student data, QR tokens, private keys or production database contents in public issues. Report a security issue privately to the maintainers through the repository's supported security-reporting mechanism.
+- **Admin activation, not daily keys:** only a trusted local terminal operator or an existing admin can issue a 20-minute single-use administrator activation/recovery key. HMAC fingerprints are stored, not plaintext. Admins set a password once and thereafter log in with their hashed password. Reissuing recovery keys invalidates the active password/sessions. First administrator provisioning is never public.
+- **Student identity:** public registration assigns only the student role. Student IDs are unique; student ticket eligibility requires matching registered ID and full name. An attendee's consent is not automatically verified; obtain it and require university ID at the gate.
+- **One admission per event:** a partial unique SQLite index enforces a single live ticket per student/event. Booking seat conflicts are prevented by a separate unique index. Both are checked again during server-side confirmation. All records commit together or roll back together.
+- **Signed QR references:** QR URL contains only a signed ticket ID and unique random nonce, no personal student data. The signature relies on a stable private `TICKET_SIGNING_KEY`; tokens are checked against live ticket/booking state. Anyone who obtains a QR might attempt to present it, so gate workers must verify physical identity. QR links may be visible in browser/device histories; do not distribute publicly.
+- **One-use check-in:** scanning a QR performs GET verification only; authorized staff/admin must explicitly POST check-in with CSRF. The server performs conditional SQL `UPDATE` to stop duplicate gate admissions, and rejects cancelled, already checked-in or unassigned tickets. Checked-in history remains for attendance auditing.
+- **Access controls:** Flask-Login, admin role guard, staff gate access, CSRF protection, login/registration/check-in rate limits, bounded inputs and security headers. Ticket details/images are no-cache and owner/attendee/admin-only. Admin PDF/CSV reports are private and escape spreadsheet formulas.
+- **Secrets and backups:** `.env`, `instance/*`, DB backups, local signing keys, terminal activation keys, student exports and `.venv/` are ignored by Git. For production configure strong persistent `SECRET_KEY` and independent `TICKET_SIGNING_KEY`; losing/rotating the latter invalidates old QR tickets. Verify backups and restoration offline.
+- **Browser cameras:** `Permissions-Policy` permits same-origin camera; `getUserMedia` requires HTTPS or localhost. `BarcodeDetector` is optional. Scanner JS refuses external QR destinations and does not auto-confirm admission. Staff must use trusted devices.
+- **Deployment controls:** GitHub Actions has read-only permission and runs tests; no automatic production deployment. Use PR approvals and branch protection. Apply migrations only with backups, review and smoke tests. Maintain persistent DB storage separate from application files.
+- **Data retention and real-world review:** Student names/IDs, event attendance and booking exports are personal data. Define access, consent, retention, erasure and disclosure rules under university policy and applicable law. Conduct security testing, uptime monitoring, rate-limit/backpressure and concurrency/load tests before real stadium use. University SSO/MFA is recommended for production admins; this project is not formally security-certified.

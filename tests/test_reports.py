@@ -10,14 +10,13 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from app import create_app, db
-from testing_support import create_isolated_test_app
 from app.admin_keys import issue_login_key
 from app.models import Booking, Event, Seat, User
 
 
 class ReportTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_isolated_test_app({
+        self.app = create_app({
             "TESTING": True,
             "SECRET_KEY": "test-only-key-for-v5",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",

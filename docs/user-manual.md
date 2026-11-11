@@ -1,12 +1,42 @@
-# Student User Manual
+# V5.4 student portal and tickets
 
-1. Open the campus stadium website and select **Student register**. Enter your university email, full name, unique Student ID (6–20 letters or digits) and password.
-2. Sign in using the Student Login page. The Student Dashboard lists upcoming events and your tickets.
-3. Choose an event, select available seats, and review the booking. Admission is free.
-4. For group reservations, the first attendee must be you. Each additional attendee must be a different registered student. Enter each person's actual registered name and Student ID.
-5. Confirm the reservation. One active ticket per student is permitted for each event, whether the student booked personally or somebody booked for them.
-6. Visit **My tickets** to open the individual QR admission ticket. It displays the event, date/time, venue, gate, section, row, seat, attendee and Student ID.
-7. At the assigned entrance, show the QR and your university ID. Staff will check your eligibility, scan the ticket and confirm entry. A checked-in or cancelled ticket cannot be reused.
-8. Cancel an unused booking via **My bookings** if you no longer need the seat. Contact staff if an old reservation has an unassigned attendee.
+1. Register or log in with student email, password and unique university Student ID; open **Student dashboard** (`/dashboard`).
+2. Browse an event. Each registered student may have **one active ticket per event**. If a classmate booked one for you, it appears automatically on your Student dashboard.
+3. For a group booking, reserve seats together: the first seat is your own; give the **exact registered name and Student ID** for each additional student. A duplicate registered attendee is rejected.
+4. Open your ticket from **My admission passes** or **My bookings**. It shows event date/time, venue, free admission (¥0.00), assigned entrance gate, section/row/seat, Student ID and QR code.
+5. Bring university identification. Go to the **entrance gate printed on the ticket**. Staff scans the QR using the CSTBS scanner or its photo fallback. A valid ticket at a closed gate is not fraudulent: staff must wait for the administrator to open it.
+6. Each QR is checked in once. Cancelled, already checked-in, invalid or unassigned tickets cannot be admitted.
+7. Group attendees should sign into their own student account to display their passes. Do not share QR images publicly.
 
-If a scanner reports **entry not open**, the ticket may still be genuine; wait for the administrator to open the entrance. If it reports **wrong gate**, go to the assigned gate shown on your ticket.
+
+# CSTBS v5.3 — Student User Manual
+
+## Register and sign in
+
+Open `/register`, supply your real name, university email, unique Student ID (6–20 letters/digits), and a 12+ character password. Your Student ID is normalized to uppercase and cannot be used on another account. Log in at `/login`. If you have an older account with a missing ID, complete it under `/account` before booking.
+
+## Reserve a free ticket
+
+1. Browse `/events`; choose an event that has not started and is open for booking.
+2. Open **Choose seats**. Available seats appear selectable, reserved/blocked seats cannot be selected. The browser refreshes live seat availability every five seconds; the server checks again on confirmation.
+3. Select up to six seats. For one seat, enter your own registered name and Student ID (they are prefilled). The first seat **always belongs to you**.
+4. For each additional seat, enter that attendee's **full name exactly as registered** and **Student ID**. Ask for permission before submitting anyone else's details. Every attendee must already have a CSTBS student account and may have only one active ticket for that event, no matter who books it.
+5. Confirm the free booking (`¥0.00`); if any seat or attendee is no longer eligible the entire operation fails safely. Try again with different seats/attendees.
+
+## View and use your QR tickets
+
+Open **My tickets** at `/bookings`; see tickets you booked and tickets another student booked for you. Tap **View QR ticket**. Each student has a separate QR and assigned seat. Show it to authorized stadium staff along with your university ID. A QR represents an unpredictable signed reference, not your student name or ID. Sharing screenshots can allow someone else to attempt entry; protect your QR.
+
+Gate staff verify the registered name/ID, then confirm one-time check-in. An already-used, cancelled or unassigned QR cannot enter. Opening the QR alone does not consume entry.
+
+## Cancel a booking
+
+On **My tickets**, cancel an active, unused seat reservation you own or a ticket assigned to you. A check-in cannot be undone through ordinary cancellation. Cancelling releases the seat for others and invalidates the ticket QR immediately. The history remains visible. No payment or refund is involved.
+
+## Accessibility and display
+
+Use the **moon/sun button** in the top navigation to switch Campus Light and Stadium Night themes. The selection is saved in your browser where storage is available. Animations reduce automatically when your device requests reduced motion. The layout works on mobile, and seat controls use keyboard-focusable buttons.
+
+## Support
+
+If another student's ID/name does not match, ask them to check their registered information or contact a stadium administrator. If a previously issued QR is marked unassigned after a V5.2 upgrade, ask an admin to verify and assign the attendee—do not attempt to share someone else's ticket.
