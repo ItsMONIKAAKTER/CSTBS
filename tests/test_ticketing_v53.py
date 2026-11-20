@@ -13,14 +13,15 @@ from pathlib import Path
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app import create_app, db
+from app import db
+from testing_support import create_isolated_test_app
 from app.models import Booking, Event, Gate, Seat, Ticket, User
 from app.ticketing import ticket_token, resolve_ticket_token
 
 
 class TicketingV53Tests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({"TESTING": True, "SECRET_KEY": "v53-flask-test-secret",
+        self.app = create_isolated_test_app({"TESTING": True, "SECRET_KEY": "v53-flask-test-secret",
             "TICKET_SIGNING_KEY": "v53-stable-test-key-that-is-long-enough-123",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "MAIL_BACKEND": "console"})
         self.ctx = self.app.app_context(); self.ctx.push()
@@ -94,7 +95,11 @@ class TicketingV53Tests(unittest.TestCase):
     def test_one_student_cannot_receive_two_live_tickets_for_same_event(self):
         self.login(self.student_a)
         self.book([self.seats[0].id])
-        self.book([self.seats[1].id])
+        response = self.client.post(f"/events/{self.event.id}/booking/review", data={
+            "csrf_token": self.csrf("/dashboard"), "seat_ids": str(self.seats[1].id)
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, "/dashboard")
         self.assertEqual(db.session.scalar(select(func.count(Booking.id))),1)
         first = db.session.scalar(select(Ticket))
         self.assertEqual(first.status,"active")

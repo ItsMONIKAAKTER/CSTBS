@@ -4,6 +4,7 @@ Run with: python -m unittest discover -s tests -v
 """
 
 import re
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -14,8 +15,9 @@ from pathlib import Path
 from sqlalchemy import func, select
 
 from app import create_app, db
+from testing_support import create_isolated_test_app
 from app.admin_keys import issue_login_key
-from app.models import Booking, Event, Seat, User
+from app.models import Booking, Event, Gate, Seat, User
 from app.seed import seed_demo_events
 
 
@@ -23,7 +25,7 @@ class CSTBSTests(unittest.TestCase):
     """Exercise real Flask routes, forms, role checks, and database writes."""
 
     def setUp(self):
-        self.app = create_app({
+        self.app = create_isolated_test_app({
             "TESTING": True,
             "SECRET_KEY": "testing-not-production",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
@@ -95,7 +97,7 @@ class CSTBSTests(unittest.TestCase):
 
     def test_registration_hashes_password_and_sets_student_role(self):
         response = self.register(email="STUDENT@EXAMPLE.EDU")
-        self.assertIn(b"Welcome, Campus Student", response.data)
+        self.assertIn(b"<h1>Welcome, <em>Campus.</em></h1>", response.data)
         user = db.session.scalar(select(User).where(User.email == "student@example.edu"))
         self.assertEqual(user.role, "student")
         self.assertNotEqual(user.password_hash, "StrongPass123")
@@ -128,7 +130,8 @@ class CSTBSTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 302)
         self.make_user("student@example.edu", "student")
         response = self.sign_in("student@example.edu")
-        self.assertIn(b"Account details", response.data)
+        self.assertEqual(response.request.path, "/dashboard")
+        self.assertIn(b"Student dashboard", response.data)
         self.assertEqual(self.logout().status_code, 302)
         self.assertEqual(self.client.get("/account").status_code, 302)
 
@@ -161,6 +164,8 @@ class CSTBSTests(unittest.TestCase):
         self.assertIn(b"Open Day Cup", created.data)
         event = db.session.scalar(select(Event).where(Event.title == "Open Day Cup"))
         self.assertEqual(event.price, Decimal("0.00"))
+        event_id = event.id
+        self.assertGreater(len(event.gates), 0)
         modified = self.client.post(f"/admin/events/{event.id}/edit", data=self.event_data(
             self.csrf(f"/admin/events/{event.id}/edit"), title="Updated Cup"
         ), follow_redirects=True)
@@ -170,7 +175,9 @@ class CSTBSTests(unittest.TestCase):
             "csrf_token": self.csrf("/admin/events")
         }, follow_redirects=True)
         self.assertIn(b"Event deleted successfully", deleted.data)
-        self.assertIsNone(db.session.get(Event, event.id))
+        self.assertIsNone(db.session.get(Event, event_id))
+        self.assertEqual(db.session.scalar(select(func.count(Seat.id)).where(Seat.event_id == event_id)), 0)
+        self.assertEqual(db.session.scalar(select(func.count(Gate.id)).where(Gate.event_id == event_id)), 0)
 
     def test_non_admin_cannot_modify_events(self):
         self.make_user("staff@example.edu", "staff")
@@ -188,7 +195,8 @@ class CSTBSTests(unittest.TestCase):
     def test_login_does_not_redirect_to_external_domain(self):
         self.make_user("student@example.edu", "student")
         response = self.sign_in("student@example.edu", next_path="//evil.example")
-        self.assertIn(b"Account details", response.data)
+        self.assertEqual(response.request.path, "/dashboard")
+        self.assertIn(b"Student dashboard", response.data)
         self.assertNotIn(b"evil.example", response.data)
 
     def test_event_deletion_refused_when_booking_history_exists(self):
@@ -197,7 +205,9 @@ class CSTBSTests(unittest.TestCase):
                       venue="Main Stadium", starts_at=datetime.now(), price=Decimal("0"))
         db.session.add(event)
         db.session.flush()
-        seat = Seat(event_id=event.id, section="A", row_label="1", number=1)
+        gate = Gate(event=event, name="Gate 1")
+        db.session.add(gate)
+        seat = Seat(event_id=event.id, gate=gate, section="A", row_label="1", number=1)
         db.session.add(seat)
         user = self.make_user("buyer@example.edu", "student")
         db.session.add(Booking(user_id=user.id, seat=seat, status="cancelled",
@@ -209,6 +219,9 @@ class CSTBSTests(unittest.TestCase):
         }, follow_redirects=True)
         self.assertIn(b"booking history", response.data)
         self.assertIsNotNone(db.session.get(Event, event.id))
+        self.assertIsNotNone(db.session.get(Seat, seat.id))
+        self.assertIsNotNone(db.session.get(Gate, gate.id))
+        self.assertEqual(db.session.scalar(select(func.count(Booking.id))), 1)
 
     def test_admin_event_ignores_forged_negative_price(self):
         self.make_user("admin@example.edu", "admin")
@@ -238,7 +251,7 @@ class CSTBSTests(unittest.TestCase):
         # Simulates a real V1 user table on disk before loading the V2 models.
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "legacy.sqlite3"
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 connection.executescript("""
                 CREATE TABLE users (
                     id INTEGER PRIMARY KEY,
@@ -256,9 +269,13 @@ class CSTBSTests(unittest.TestCase):
                 "SQLALCHEMY_DATABASE_URI": "sqlite:///" + str(path),
             })
             with migrated_app.app_context():
-                old_user = db.session.scalar(select(User).where(User.email == "old@example.edu"))
-                self.assertEqual(old_user.role, "student")
-                self.assertEqual(db.session.scalar(select(func.count(User.id))), 1)
+                try:
+                    old_user = db.session.scalar(select(User).where(User.email == "old@example.edu"))
+                    self.assertEqual(old_user.role, "student")
+                    self.assertEqual(db.session.scalar(select(func.count(User.id))), 1)
+                finally:
+                    db.session.remove()
+                    db.engine.dispose()
 
 
 if __name__ == "__main__":

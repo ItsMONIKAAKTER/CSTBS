@@ -1,6 +1,7 @@
 """V3 Flask integration tests: seat ownership, availability, races, cancellation."""
 
 import re
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -12,13 +13,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import create_app, db
+from testing_support import create_isolated_test_app
 from app.models import Booking, Event, Seat, User
 from app.seating import MAX_SEATS_PER_BOOKING
 
 
 class ReservationTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({
+        self.app = create_isolated_test_app({
             "TESTING": True,
             "SECRET_KEY": "v3-test-key-only",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
@@ -68,7 +70,7 @@ class ReservationTests(unittest.TestCase):
         })
 
     def confirm(self, client, attendee_ids=None, attendee_names=None):
-        data = {"csrf_token": self.csrf(client, f"/events/{self.event_id}/seats")}
+        data = {"csrf_token": self.csrf(client, "/account")}
         if attendee_ids is not None:
             data["attendee_student_id"] = attendee_ids
             data["attendee_name"] = attendee_names
@@ -192,7 +194,7 @@ class ReservationTests(unittest.TestCase):
     def test_upgrade_existing_v2_booking_schema(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "previous.sqlite3"
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn:
                 conn.executescript("""
                 CREATE TABLE bookings (
                   id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,
@@ -203,14 +205,18 @@ class ReservationTests(unittest.TestCase):
             migrated = create_app({"TESTING": True, "SECRET_KEY": "migration-test",
                 "SQLALCHEMY_DATABASE_URI": "sqlite:///" + str(path)})
             with migrated.app_context():
-                from sqlalchemy import inspect
-                names = {col["name"] for col in inspect(db.engine).get_columns("bookings")}
-                self.assertIn("price_at_booking", names)
-                with db.engine.connect() as connection:
-                    indexes = connection.exec_driver_sql(
-                        "SELECT name FROM sqlite_master WHERE type='index'"
-                    ).fetchall()
-                self.assertIn("uq_active_booking_per_seat", [row[0] for row in indexes])
+                try:
+                    from sqlalchemy import inspect
+                    names = {col["name"] for col in inspect(db.engine).get_columns("bookings")}
+                    self.assertIn("price_at_booking", names)
+                    with db.engine.connect() as connection:
+                        indexes = connection.exec_driver_sql(
+                            "SELECT name FROM sqlite_master WHERE type='index'"
+                        ).fetchall()
+                    self.assertIn("uq_active_booking_per_seat", [row[0] for row in indexes])
+                finally:
+                    db.session.remove()
+                    db.engine.dispose()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Version 4 integration cases; run with unittest after pip install."""
 
 import re
+from contextlib import closing
 import sqlite3
 import tempfile
 import unittest
@@ -13,13 +14,14 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app import create_app, db
+from testing_support import create_isolated_test_app
 from app.admin_keys import issue_login_key
 from app.models import Booking, Event, Seat, User
 
 
 class AdminTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({"TESTING": True, "SECRET_KEY": "test-key-v4",
+        self.app = create_isolated_test_app({"TESTING": True, "SECRET_KEY": "test-key-v4",
                                "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
                                "MAIL_BACKEND": "console"})
         self.ctx = self.app.app_context()
@@ -157,17 +159,21 @@ class AdminTests(unittest.TestCase):
     def test_upgrade_v3_database_adds_block_flag(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root) / "v3.sqlite"
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn:
                 conn.executescript("CREATE TABLE seats (id INTEGER PRIMARY KEY, event_id INTEGER, "
                                    "section VARCHAR(30), row_label VARCHAR(10), number INTEGER);"
                                    "INSERT INTO seats VALUES (1, 1, 'Main', 'A', 1);")
             upgraded = create_app({"TESTING": True, "SECRET_KEY": "test-migration-v4",
                 "SQLALCHEMY_DATABASE_URI": f"sqlite:///{path}"})
             with upgraded.app_context():
-                from sqlalchemy import inspect
-                fields = {col["name"] for col in inspect(db.engine).get_columns("seats")}
-                self.assertIn("is_blocked", fields)
-                self.assertEqual(db.session.get(Seat, 1).is_blocked, False)
+                try:
+                    from sqlalchemy import inspect
+                    fields = {col["name"] for col in inspect(db.engine).get_columns("seats")}
+                    self.assertIn("is_blocked", fields)
+                    self.assertEqual(db.session.get(Seat, 1).is_blocked, False)
+                finally:
+                    db.session.remove()
+                    db.engine.dispose()
 
 
 if __name__ == "__main__":

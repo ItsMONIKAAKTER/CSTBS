@@ -66,6 +66,7 @@ class HttpSessionIsolationTests(unittest.TestCase):
         self.assertEqual(result.status_code, 302)
         self.assertEqual(self.primary.get("/admin/").status_code, 200)
         # A fresh logout/menu token must be valid after login's session.clear().
+        login_token = token
         token = self.csrf(self.primary, "/admin/events/new")
         event_data = {
             "title": "University Open Match",
@@ -75,6 +76,12 @@ class HttpSessionIsolationTests(unittest.TestCase):
             "starts_at": (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%dT%H:%M"),
         }
         self.assertEqual(self.primary.post("/admin/events/new", data=event_data).status_code, 400)
+        for invalid_token in (login_token, token + "tampered"):
+            response = self.primary.post("/admin/events/new", data={
+                "csrf_token": invalid_token, **event_data
+            })
+            self.assertEqual(response.status_code, 400)
+            self.assertIsNone(db.session.scalar(select(Event.id)))
         response = self.primary.post("/admin/events/new", data={"csrf_token": token, **event_data})
         self.assertEqual(response.status_code, 302)
         self.assertIsNotNone(db.session.scalar(select(Event.id)))
