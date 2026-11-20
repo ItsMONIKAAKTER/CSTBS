@@ -1,126 +1,197 @@
-# CSTBS v5.4 — Stadium Operations & Ticket Experience
+<div align="center">
 
-A Flask-based university stadium event system. Students can reserve **free** assigned seats for themselves and verified classmates, receive one signed QR admission pass per attendee, and enter through an authorized staff gate check-in. Administrators manage events, seat sections, bookings, users, gate operations and private PDF/CSV reports.
+# Campus Stadium Ticket Booking System
 
-**Release:** `v5.4` · **Python:** 3.10+ · **Database:** SQLite · **Admission:** ¥0.00 CNY / no payment gateway
+**Discover campus events. Choose your seats. Arrive with your QR pass.**
+
+A university stadium booking application built with Flask, SQLAlchemy, and SQLite. CSTBS connects student reservations with staff admission checks and administrator gate operations.
+
+[![CI](https://github.com/ItsMONIKAAKTER/CSTBS/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/ItsMONIKAAKTER/CSTBS/actions/workflows/tests.yml) [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![MIT License](https://img.shields.io/badge/License-MIT-16834A)](LICENSE)
+
+[Get started](#get-started) · [Screenshots](#screenshots) · [Features](#features) · [Documentation](#documentation)
+
+![Animated tour of CSTBS event discovery, day and night themes, seat selection, and stadium operations](docs/images/product-tour.gif)
+
+</div>
+
+## Overview
+
+CSTBS manages the journey from discovering an event to entering the stadium. Students reserve free assigned seats for themselves and registered classmates. Each attendee receives a signed QR admission pass, and authorized staff verify entry at the correct gate.
+
+Administrators manage events, seating sections, bookings, accounts, attendance, and reports from a dedicated operations dashboard. Version 5.4 adds event-scoped gate assignments, individual entrance controls, and QR-photo scanning.
+
+## Screenshots
+
+The previews below were captured from the running application with fictional local demonstration data. The animated tour shows the application's interface and interactions.
+
+| Seat selection | Stadium operations |
+| --- | --- |
+| [![Interactive stadium seating with availability and a booking summary](docs/images/seat-selection.png)](docs/images/seat-selection.png) | [![Administrator dashboard with attendance, capacity, and entry controls](docs/images/stadium-control.png)](docs/images/stadium-control.png) |
+
+[View the homepage screenshot](docs/images/home.png)
 
 ## Features
 
-| Audience | Features |
-|---|---|
-| Public | Animated responsive home, events and details; day/night theme switcher |
-| Students | Register with unique Student ID (6–20 alphanumeric); login, account, personal booking history |
-| Booking | Interactive seat map; five-second availability polling; select up to six seats per checkout; match each attendee's existing student account; first seat for the booker; one live ticket per student per event; atomic seat and ticket creation |
-| Tickets | Individual non-personal signed QR references; printable on-screen ticket; cancelled/used/unknown tickets rejected |
-| Staff | Browser camera scan when supported **or on-device QR photograph upload** via OpenCV (works without BarcodeDetector); choose physical gate, verify ID, one-use check-in and attendance overview |
-| Admin | First admin provisioned locally via a one-time 20-minute activation key; **normal email/password login thereafter**; stadium control dashboard, per-event and per-gate entry controls, section-to-gate assignments, event CRUD, seats, student/staff roles, bookings, check-ins, reports |
-| Security | Password hashing, Flask-Login, role authorization, CSRF, rate limiting, private ticket images, safe CSV exports, unique-ticket/seat constraints, SQLite foreign keys, session revocation on admin reset |
-| Developer | V5.2-compatible SQLite migration with automatic pre-upgrade backup, private `.env`/DB, GitHub Actions CI, health endpoint, integration test suite |
+| Area | Capabilities |
+| --- | --- |
+| Event discovery | Responsive event catalog, event details, animated interface, and day/night themes |
+| Student accounts | Registration with a unique 6–20 character alphanumeric Student ID, password login, profile, and booking history |
+| Reservations | Interactive seating map, five-second availability updates, up to six seats per checkout, and atomic booking confirmation |
+| Classmate bookings | Registered attendee name and Student ID matching, with one live ticket per student per event |
+| QR admission | Individually signed opaque QR tokens, private ticket images, gate selection, and one-use staff check-in |
+| Camera and photos | Live scanning on compatible browsers plus QR-photo upload decoded on the application server |
+| Stadium administration | Event and seat management, blocked seats, role management, section-to-gate assignments, and event or individual gate controls |
+| Reporting | Attendance and booking views with access-controlled PDF and CSV exports |
 
-**Limitations:** Live browser camera scanning requires HTTPS/localhost and compatible BarcodeDetector support; the separate camera/gallery photo upload works without it, but still depends on browser camera/photo permissions. No payment, refunds or QR sharing feature. A ticket is assigned only to a registered student who supplies matching Student ID and full name. Obtaining permission from classmates and verifying their physical university ID are operational requirements. Time displayed follows your configured campus/server timezone; production should standardize and document timezone policy.
+All university reservations are free. The application displays a zero admission amount and processes reservations without a payment gateway.
 
-## Windows PowerShell: First run
+## Reservation and admission flow
 
-1. Install Python 3.10+ and extract the ZIP into `CSTBS-v5.4`.
-2. Open PowerShell **inside that folder** and run:
+1. **Discover an event.** Browse upcoming activities and open the seating map after signing in.
+2. **Select and review.** Choose up to six seats. The first seat belongs to the booker, and additional seats require matching registered classmates.
+3. **Confirm the reservation.** CSTBS creates the bookings and individual tickets together, subject to seat and attendee availability.
+4. **Open the admission pass.** Each student finds their personal QR ticket on the student dashboard, including tickets booked by classmates.
+5. **Enter at the assigned gate.** An administrator opens entry. Staff select their physical gate, verify the attendee's university ID, and confirm check-in.
+
+Repeated scans show the existing check-in status. Cancelled, unassigned, altered, and unknown tickets are rejected. Closed or incorrect gates produce a waiting message that explains the entry requirement.
+
+## Get started
+
+### Requirements
+
+- Python 3.10 or newer
+- Git and a modern web browser
+- Node.js for the optional JavaScript syntax checks
+
+SQLite is included with Python. Install the application dependencies from `requirements.txt`, which includes the QR generation and OpenCV photo-decoding packages.
+
+### Windows PowerShell
 
 ```powershell
+git clone https://github.com/ItsMONIKAAKTER/CSTBS.git
+cd CSTBS
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m flask --app run.py init-db
-python -m flask --app run.py seed-events
-python run.py
+.\.venv\Scripts\python -m pip install -r requirements.txt
+.\.venv\Scripts\python -m flask --app run.py init-db
+.\.venv\Scripts\python -m flask --app run.py seed-events
+.\.venv\Scripts\python run.py
 ```
 
-If activation is blocked: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then activate again.
+### macOS and Linux
 
-3. On the first **interactive local** server start, if no admin exists, enter admin email and name at the terminal prompt. A **20-minute, single-use activation key** appears once. **Do not put it into Notepad, `.env` or Python source.**
-4. Open `http://127.0.0.1:5000/admin/activate`, enter the admin email, activation key and a new password (12–128 characters). After success you reach the dashboard.
-5. **Future logins:** `http://127.0.0.1:5000/admin/login` → email and password; no key needed.
-6. Students register at `/register` with their Student ID, name, email and password, then use `/login`.
-
-Development automatically generates a stable private `instance/.local_secret_key` if you have not set `SECRET_KEY`; it is ignored by Git. A `.env` file is therefore optional for the local demonstration. Never overwrite this secret on an existing installation: the QR signing key falls back to it in development.
-
-### If the admin activation key expires
-
-```powershell
-# Second PowerShell window, with .venv active
-python -m flask --app run.py admin-key admin@university.edu
+```bash
+git clone https://github.com/ItsMONIKAAKTER/CSTBS.git
+cd CSTBS
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m flask --app run.py init-db
+.venv/bin/python -m flask --app run.py seed-events
+.venv/bin/python run.py
 ```
 
-This is only for administrators **not yet activated**. To deliberately recover/reset an **already activated** administrator account (revokes its password/session), a trusted local operator runs:
+Open **http://127.0.0.1:5000**. The event seed adds four sample events only when the catalog is empty.
 
-```powershell
-python -m flask --app run.py admin-reset admin@university.edu
+### Administrator setup
+
+On the first interactive local start, the terminal asks for the first administrator's email and name. It displays a single-use activation key that expires after 20 minutes.
+
+1. Open `/admin/activate` and enter the administrator email, activation key, and a new 12–128 character password.
+2. After activation, use `/admin/login` with the email and password.
+3. For a pending administrator whose key expired, run `python -m flask --app run.py admin-key EMAIL` using the virtual environment's Python.
+4. For deliberate recovery of an activated administrator, `admin-reset EMAIL` revokes the existing password and sessions and issues a recovery key.
+
+A trusted operator can also run `python -m flask --app run.py admin-setup`. Administrator creation and recovery are managed through the local operator workflow. Public registration creates student accounts.
+
+Development creates a persistent private secret in `instance/.local_secret_key` when an explicit `SECRET_KEY` is absent. Preserve that file when updating an existing local installation. Optional demo accounts can be created with `seed-demo` after supplying a private `DEMO_SEED_PASSWORD`. See the installation guide for details.
+
+### Application routes
+
+| Purpose | Route |
+| --- | --- |
+| Event catalog | `/events` |
+| Student registration and login | `/register` and `/login` |
+| Personal admission passes | `/dashboard` |
+| Booking history | `/bookings` |
+| Administrator login | `/admin/login` |
+| Stadium operations | `/admin/` |
+| Gate scanner | `/entry/scan` |
+| Database health check | `/health` |
+
+## Technology and structure
+
+CSTBS uses Flask and Jinja templates for its server-rendered interface, SQLAlchemy for persistence, and standard JavaScript for seating, themes, and scanning. Flask-Login, Flask-WTF, and Flask-Limiter provide authentication, CSRF protection, and request limits.
+
+```text
+CSTBS/
+├── app/
+│   ├── templates/       # Public, student, staff, and administrator views
+│   ├── static/          # Styles, JavaScript, and illustration assets
+│   ├── models.py        # Users, events, seats, bookings, tickets, and gates
+│   ├── routes.py        # Authentication, discovery, and reservations
+│   ├── admin.py         # Stadium and account administration
+│   ├── entry.py         # Ticket verification and check-in
+│   └── reports.py       # PDF and CSV reporting
+├── docs/                # Manuals, deployment notes, UML, and screenshots
+├── tests/               # Integration and regression tests
+├── config.py            # Environment-based configuration
+├── run.py               # Local server and WSGI entry point
+└── requirements.txt     # Application dependencies
 ```
 
-Admin users can promote another account through **Admin → Users**, then issue an activation key there. Existing active admin passwords can only be reset after an explicit confirmation. No admin registration endpoint exists.
+## Security and operational behavior
 
-### Optional demonstration dataset
+- Passwords are hashed. Role authorization protects administration, staff scanning, and private ticket access.
+- State-changing forms require CSRF tokens. Administrator activation and recovery keys expire and can be consumed once.
+- Database constraints protect active seat reservations and live attendee tickets. Booking history, including cancellations, prevents event deletion.
+- New events and migrated gates start closed. Administrators open entry and configure section assignments before staff admit attendees.
+- QR tokens contain signed opaque references. Staff verify identity and use the CSTBS scanner to resolve the ticket.
+- `.env`, databases, backups, signing keys, and runtime files are excluded from Git.
 
-The demo command is **development-only**; it requires `DEMO_SEED_PASSWORD` configured privately and creates only local demo users. In PowerShell:
+Live camera scanning requires HTTPS or localhost, browser permissions, and compatible camera-decoding support. The QR-photo fallback uploads an image to the application server for OpenCV decoding. Event times follow the campus/server configuration and require a consistent deployment timezone.
 
-```powershell
-$env:DEMO_SEED_PASSWORD = 'use-a-long-random-demo-password'
-python -m flask --app run.py seed-demo
-Remove-Item Env:DEMO_SEED_PASSWORD
-```
+Production configuration requires stable secrets, HTTPS-only cookies, trusted hosts, shared rate-limit storage, and SMTP. See the deployment guide for persistent storage, backup, migration, and hosting requirements. Security reporting instructions are in [SECURITY.md](SECURITY.md).
 
-The event seed is idempotent. Demo tickets have distinct student attendees; none are promoted automatically in a production environment.
+## Testing
 
-## Reservation and gate flow
+Run these commands with the virtual environment active, or use its Python executable directly.
 
-1. Student logs in and selects 1–6 open seats on an upcoming event.
-2. In **Review**, the first seat is assigned to themselves. Each additional seat requires the registered student's full name and Student ID. CSTBS checks registered accounts and existing live tickets.
-3. On **Confirm**, the database writes the seat bookings and matching individual tickets in one transaction; race conditions reject the whole conflicting attempt.
-4. Students open **Student dashboard** (`/dashboard`) to view personal passes, including tickets booked by classmates. Tickets display event date, time, venue, gate, section, row/seat, attendee ID and unique QR.
-5. Admin opens **Stadium control** (`/admin/`) and uses **Open entry** to open all entrances for that event; **Manage gates** assigns sections to named entrance gates and can close individual gates.
-6. Staff/admin selects their physical gate at **QR scanner** (`/entry/scan`), scans live using BarcodeDetector or uses the **QR photograph** fallback, and matches university ID. A valid ticket at a closed/wrong gate shows a clear waiting message. Staff explicitly presses **Confirm entry** (CSRF POST) once.
-7. Repeated scans show **Already checked in**. Cancelled or unassigned tickets cannot enter. Checked-in tickets are preserved and cannot be cancelled using normal cancellation controls.
-
-## Upgrading an existing V5.2 / V5.3 installation
-
-1. Stop the old server and **back up** `instance/cstbs.db`; copy it into the new version's `instance/`. Also preserve the existing `SECRET_KEY` from your environment or `instance/.local_secret_key`; otherwise sessions and existing HMAC keys will not survive. For public deployments preserve your explicit `TICKET_SIGNING_KEY` as well.
-2. Run `python -m flask --app run.py init-db`. For V5.3 and earlier SQLite schemas, the migration saves an integrity-checked snapshot in ignored `instance/backups/` **before adding gate fields**, backfills Gate 1 for each event, and preserves tickets, QR secrets and check-ins. The upgrade is idempotent.
-3. Existing admin roles remain, but **admins must activate a password once** with a new 20-minute key. Run `admin-key EMAIL` or start interactively. Students continue to log in normally.
-4. The upgrade preserves V5.2 bookings. For a student who held multiple active seats at the same event, **only the first can automatically become that student's QR ticket**. The others remain reserved with **unassigned** ticket status, which an admin must assign to a different verified registered attendee in **Admin → Bookings**. No history or seat reservation is silently deleted.
-5. Re-run all tests, inspect capacity, test key activation, confirm a QR scan and restore from backup if unexpected inconsistencies appear.
-
-More detailed upgrade/backup steps: [`docs/installation-deployment.md`](docs/installation-deployment.md).
-
-## Testing and GitHub-safe workflow
-
-```powershell
+```bash
+python -m pip check
 python -m unittest discover -s tests -v
-python -m compileall -q app tests run.py config.py
-python -m flask --app run.py backup-db
+python -m compileall -q app config.py run.py tests
+node --check app/static/js/main.js
+node --check app/static/js/seats.js
+node --check app/static/js/scanner.js
 ```
 
-The GitHub Actions workflow runs checks on pushes and pull requests; **it does not deploy or touch your live DB**. Enable branch protection requiring CI to pass before merging. Deploy only an approved release artifact after a separate DB backup and reviewed migration. GitHub contains source code, not your runtime database. Use persistent storage and stable secrets at the actual host. See [`SECURITY.md`](SECURITY.md) and [`docs/installation-deployment.md`](docs/installation-deployment.md).
+GitHub Actions runs the integration suite and syntax checks on Python 3.10, 3.11, and 3.12 for pushes and pull requests. Tests cover authentication, CSRF, authorization, booking conflicts, cancellations, ticket signatures, gate entry, reports, and legacy SQLite upgrades.
 
-**Important:** Each gate starts CLOSED after a fresh event is created or a legacy event is upgraded. This is intentional safety behavior. Admin opens it with **Stadium control → Open entry**. Choose the matching gate in the scanner. A closed gate produces **Valid ticket — entry not open**, rather than a fraudulent-code result. No HTML camera solution can bypass browser permissions or the HTTPS secure-context requirement.
+## Updating an existing installation
 
-**Health endpoint:** `GET /health` returns `{"status":"ok","version":"5.4"}` when DB queries work.
+Preserve the database and its secrets before upgrading. Stop the application, create a backup, and run `python -m flask --app run.py init-db` using the intended environment. The SQLite compatibility migrations apply schema updates and backfill gates and tickets while retaining booking history.
 
-## Project documentation
+Legacy reservations with duplicate active attendees may require an administrator to assign additional tickets to verified classmates. Test the upgrade against a copy of the database and confirm existing QR passes, gate assignments, and reporting before reopening entry.
 
-- [`docs/user-manual.md`](docs/user-manual.md) — booking for classmates, QR tickets, cancellation
-- [`docs/admin-manual.md`](docs/admin-manual.md) — first admin activation, stadium operations, attendee correction
-- [`docs/installation-deployment.md`](docs/installation-deployment.md) — Windows, environments, migrations, backups, deployment
-- [`docs/database-design.md`](docs/database-design.md) — V5.4 ER model, constraints and legacy compatibility
-- [`docs/uml.md`](docs/uml.md) — PlantUML class, activity and entry sequence diagrams
-- [`docs/github-release-v5.4.md`](docs/github-release-v5.4.md) — copy-ready GitHub release text
-- [`CHANGELOG.md`](CHANGELOG.md) — V1.0 through V5.4
+The [installation and deployment guide](docs/installation-deployment.md) covers V5.2/V5.3 upgrades, automatic pre-upgrade backups, recovery, and deployment configuration. GitHub CI verifies the source separately from the running stadium installation.
 
-**Not a payment or public university identity-verification system.** For broader production use, obtain consent, perform institutional security and privacy review, adopt production-grade backups and monitoring, and plan a scalable database and trustworthy MFA/SSO for privileged users.
+## Documentation
 
-## Role dashboards & QR scanner troubleshooting (V5.4)
+| Guide | Contents |
+| --- | --- |
+| [User manual](docs/user-manual.md) | Student accounts, classmate reservations, QR passes, and cancellations |
+| [Administrator manual](docs/admin-manual.md) | Activation, stadium operations, roles, and attendee corrections |
+| [Installation and deployment](docs/installation-deployment.md) | Local setup, production configuration, migrations, backups, and recovery |
+| [Database design](docs/database-design.md) | Relationships, constraints, and compatibility |
+| [UML diagrams](docs/uml.md) | Class, activity, and entry sequence diagrams |
+| [Testing guide](docs/testing.md) | Release checks and operational acceptance scenarios |
+| [Changelog](CHANGELOG.md) | Release history |
 
-- **Students:** visit `/dashboard` after password login, then use *My admission passes*. The ticket holder sees their own QR even if a classmate made the group reservation. One active ticket per Student ID per event is enforced in the database.
-- **Admins:** visit `/admin/` after activation/password login. It shows events, attendance, reservations, open gates, and prominent **Open entry** / **Close entry** controls. Use **Manage gates** to add/rename a gate and assign sections, **Seats** to block seats, **Users** to manage roles, and **Reports** for PDF/CSV.
-- **Staff:** log in normally and use `/entry/scan` (admin can use it too). Pick the event/gate first. For live video use HTTPS or localhost and grant permission. If `BarcodeDetector` is unavailable, tap **Read QR photograph** and use the phone camera or gallery. Manual pasted signed codes are also supported.
-- **QR data:** the code is an opaque signed token, not an exposed Student ID or a `localhost` hyperlink. Use the CSTBS scanner/photo decoder rather than expecting the generic camera app to open a website from this QR.
-- **When the screen says entry not open:** the ticket is valid, but an admin must open entry on the stadium dashboard. For *wrong gate*, direct the attendee to the gate printed on their ticket. For *already checked in*, do not admit a second time.
+## Contributors
 
-**Dependency note:** V5.4 adds `opencv-python-headless` for reliable server-side QR-photo decoding, in addition to `qrcode[pil]`. Install with `python -m pip install -r requirements.txt` again after updating.
+[MONIKA AKTER](https://github.com/ItsMONIKAAKTER) and [Md. Meazbah Mehedi](https://github.com/MeazbahMehedi).
+
+Contributions are welcome through focused pull requests with a clear description and passing checks.
+
+## License
+
+Released under the [MIT License](LICENSE). Copyright © 2026 MONIKA AKTER & MEAZBAH MEHEDI.
