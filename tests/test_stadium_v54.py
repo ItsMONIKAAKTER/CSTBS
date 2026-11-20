@@ -8,7 +8,8 @@ from decimal import Decimal
 import qrcode
 from sqlalchemy import select, text
 
-from app import create_app, db
+from app import db
+from testing_support import create_isolated_test_app
 from app.entry import admission_verdict
 from app.models import Booking, Event, Gate, Seat, Ticket, User
 from app.qr_decode import decode_qr_photo
@@ -17,7 +18,7 @@ from app.ticketing import ticket_token
 
 class StadiumV54Tests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app({
+        self.app = create_isolated_test_app({
             "TESTING": True, "SECRET_KEY": "test-stadium-v54-secret-key", 
             "TICKET_SIGNING_KEY": "test-stadium-v54-qr-signature-secret-1234",
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "MAIL_BACKEND": "console"
@@ -88,7 +89,7 @@ class StadiumV54Tests(unittest.TestCase):
         self.assertNotIn(b"Version 5.3", self.client.get("/").data)
         self.logout()
         self.login(self.admin)
-        self.assertIn(b"Stadium control center", self.client.get("/admin/").data)
+        self.assertIn(b"<h1>Stadium <em>control center.</em></h1>", self.client.get("/admin/").data)
         self.assertEqual(self.client.get("/dashboard").status_code, 302)
 
     def test_gate_status_and_wrong_gate_clear_verdict(self):

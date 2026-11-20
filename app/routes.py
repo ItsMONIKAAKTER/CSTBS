@@ -284,6 +284,8 @@ def admin_event_delete(event_id):
     else:
         for seat in list(event.seats):
             db.session.delete(seat)
+        for gate in list(event.gates):
+            db.session.delete(gate)
         db.session.delete(event)
         db.session.commit()
         flash("Event deleted successfully.", "success")
